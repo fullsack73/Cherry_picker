@@ -9,14 +9,23 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
@@ -28,6 +37,7 @@ class MainActivity : ComponentActivity() {
         LocationServices.getFusedLocationProviderClient(this)
     }
     private val locationState = mutableStateOf("Location not available")
+    private var isLoading by mutableStateOf(false)
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -44,11 +54,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             Cherry_pickerTheme {
-                LocationScreen(locationState.value) {
-                    checkLocationPermission()
-                }
+                LocationScreen(
+                    location = locationState.value,
+                    isLoading = isLoading,
+                    onRefreshClick = {
+                        checkLocationPermission()
+                    }
+                )
             }
         }
+        checkLocationPermission()
     }
 
     private fun checkLocationPermission() {
@@ -84,6 +99,7 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         ) {
+            isLoading = true
             fusedLocationClient.getCurrentLocation(LocationRequest.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener { location ->
                     if (location != null) {
@@ -91,24 +107,31 @@ class MainActivity : ComponentActivity() {
                     } else {
                         locationState.value = "Location not found"
                     }
+                    isLoading = false
                 }
                 .addOnFailureListener {
                     locationState.value = "Failed to get location"
+                    isLoading = false
                 }
         }
     }
 }
 
 @Composable
-fun LocationScreen(location: String, onGetLocationClick: () -> Unit) {
+fun LocationScreen(location: String, isLoading: Boolean, onRefreshClick: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = location)
-        Button(onClick = onGetLocationClick) {
-            Text("Get Location")
+        if (isLoading) {
+            CircularProgressIndicator()
+        } else {
+            Text(text = location)
+            Spacer(modifier = Modifier.height(16.dp))
+            IconButton(onClick = onRefreshClick) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh Location")
+            }
         }
     }
 }
