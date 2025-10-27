@@ -27,8 +27,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.launch
+import teamcherrypicker.com.api.ApiClient
+import teamcherrypicker.com.data.UserLocation
 import teamcherrypicker.com.ui.theme.Cherry_pickerTheme
 
 class MainActivity : ComponentActivity() {
@@ -104,6 +108,7 @@ class MainActivity : ComponentActivity() {
                 .addOnSuccessListener { location ->
                     if (location != null) {
                         locationState.value = "Latitude: ${location.latitude}, Longitude: ${location.longitude}"
+                        sendLocationToBackend(location.latitude, location.longitude)
                     } else {
                         locationState.value = "Location not found"
                     }
@@ -113,6 +118,24 @@ class MainActivity : ComponentActivity() {
                     locationState.value = "Failed to get location"
                     isLoading = false
                 }
+        }
+    }
+
+    private fun sendLocationToBackend(latitude: Double, longitude: Double) {
+        lifecycleScope.launch {
+            try {
+                val response = ApiClient.apiService.sendLocation(UserLocation(latitude, longitude))
+                if (response.isSuccessful) {
+                    // Location sent successfully
+                    Toast.makeText(this@MainActivity, "Location sent to server", Toast.LENGTH_SHORT).show()
+                } else {
+                    // Handle server error
+                    Toast.makeText(this@MainActivity, "Server error", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                // Handle network error
+                Toast.makeText(this@MainActivity, "Network error", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

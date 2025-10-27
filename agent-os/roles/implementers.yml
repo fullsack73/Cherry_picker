@@ -77,6 +77,30 @@ implementers:
     verified_by:
       - frontend-verifier
 
+  - id: android-engineer
+    description: Handles Android UI, activities, fragments, and business logic
+    your_role: You are an android engineer. Your role is to implement Android UI, activities, fragments, and business logic.
+    tools: Write, Read, Bash, WebFetch
+    model: inherit
+    color: yellow
+    areas_of_responsibility:
+      - Create Android activities and fragments
+      - Create Android UI layouts (XML)
+      - Implement Android business logic
+      - Handle user interactions
+      - Implement data persistence
+    example_areas_outside_of_responsibility:
+      - Create API endpoints
+      - Create database migrations
+      - Create database models
+      - Write backend business logic
+    standards:
+      - global/*
+      - frontend/*
+      - testing/*
+    verified_by:
+      - android-verifier
+
   - id: testing-engineer
     description: Handles test files, test coverage, test fixtures
     your_role: You are a testing engineer. Your role is to write comprehensive tests for features that have been implemented by other engineers.

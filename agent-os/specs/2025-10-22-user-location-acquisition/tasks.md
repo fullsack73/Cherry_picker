@@ -40,13 +40,13 @@ Assigned roles: [android-engineer, api-engineer, testing-engineer]
 **Assigned implementer:** api-engineer
 **Dependencies:** Task Group 1
 
-- [ ] 2.0 Complete API integration
-  - [ ] 2.1 Write 1-2 focused tests for the API client.
+- [x] 2.0 Complete API integration
+  - [x] 2.1 Write 1-2 focused tests for the API client.
     - Test that the location is sent to the correct endpoint.
-  - [ ] 2.2 Implement the API client to send location data.
+  - [x] 2.2 Implement the API client to send location data.
     - Create a method to send a `POST` request to `/user-location` with latitude and longitude.
     - This might involve using a networking library like Retrofit or Ktor.
-  - [ ] 2.3 Ensure API integration tests pass.
+  - [x] 2.3 Ensure API integration tests pass.
     - Run ONLY the tests written in 2.1.
 
 **Acceptance Criteria:**
@@ -59,11 +59,11 @@ Assigned roles: [android-engineer, api-engineer, testing-engineer]
 **Assigned implementer:** testing-engineer
 **Dependencies:** Task Groups 1-2
 
-- [ ] 3.0 Review existing tests and fill critical gaps only
-  - [ ] 3.1 Review tests from Task Groups 1 and 2.
-  - [ ] 3.2 Analyze test coverage for the user location feature and identify any critical gaps.
-  - [ ] 3.3 Write up to 5 additional strategic tests maximum to cover critical end-to-end workflows.
-  - [ ] 3.4 Run all feature-specific tests and verify they pass.
+- [x] 3.0 Review existing tests and fill critical gaps only
+  - [x] 3.1 Review tests from Task Groups 1 and 2.
+  - [x] 3.2 Analyze test coverage for the user location feature and identify any critical gaps.
+  - [x] 3.3 Write up to 5 additional strategic tests maximum to cover critical end-to-end workflows.
+  - [x] 3.4 Run all feature-specific tests and verify they pass.
 
 **Acceptance Criteria:**
 - All feature-specific tests pass.
