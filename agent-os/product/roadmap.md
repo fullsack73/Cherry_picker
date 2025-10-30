@@ -1,6 +1,6 @@
 # Product Roadmap
 
-1. [X] User Location Acquisition — Implement functionality to securely obtain and process the user's current geographical location. `M`
+1. - [x] User Location Acquisition — Implement functionality to securely obtain and process the user's current geographical location. `M`
 2. [ ] Store Data Integration & Proximity Search — Integrate a comprehensive database of store locations and develop a service to identify stores within a defined radius of the user. `L`
 3. [ ] Store Selection User Interface — Design and implement a user-friendly interface allowing the user to view nearby stores and confirm their intended destination. `M`
 4. [ ] Credit Card Benefit Data Integration — Integrate a robust dataset containing various credit cards and their associated benefits, categorized by merchant or type. `L`
