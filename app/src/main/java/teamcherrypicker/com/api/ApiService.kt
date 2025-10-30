@@ -6,6 +6,6 @@ import retrofit2.http.POST
 import teamcherrypicker.com.data.UserLocation
 
 interface ApiService {
-    @POST("/user-location")
+    @POST("/api/location")
     suspend fun sendLocation(@Body location: UserLocation): Response<Unit>
 }
