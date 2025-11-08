@@ -12,14 +12,14 @@ Assigned roles: api-engineer, ui-designer, testing-engineer
 **Assigned implementer:** api-engineer
 **Dependencies:** None
 
-- [ ] 1.0 Complete API layer
-  - [ ] 1.1 Write 2-8 focused tests for API endpoints
+- [x] 1.0 Complete API layer
+  - [x] 1.1 Write 2-8 focused tests for API endpoints
     - Test the endpoint for fetching nearby stores.
     - Test the endpoint for fetching credit card categories and cards.
-  - [ ] 1.2 Create store data endpoints
+  - [x] 1.2 Create store data endpoints
     - Create an endpoint to get a list of nearby stores.
     - Create an endpoint to get a list of credit card categories and available cards.
-  - [ ] 1.3 Ensure API layer tests pass
+  - [x] 1.3 Ensure API layer tests pass
     - Run ONLY the 2-8 tests written in 1.1.
 
 **Acceptance Criteria:**

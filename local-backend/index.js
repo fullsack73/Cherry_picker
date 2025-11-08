@@ -3,11 +3,36 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const port = 3000;
 
+app.use(cors());
 app.use(express.json());
+
+const stores = [
+  { id: 1, name: 'Store A', latitude: 34.0522, longitude: -118.2437 },
+  { id: 2, name: 'Store B', latitude: 34.0525, longitude: -118.2440 },
+  { id: 3, name: 'Store C', latitude: 34.0530, longitude: -118.2435 },
+];
+
+const cards = [
+  {
+    category: 'Travel',
+    cards: [
+      { id: 1, name: 'Chase Sapphire Preferred' },
+      { id: 2, name: 'Capital One Venture Rewards' },
+    ],
+  },
+  {
+    category: 'Cash Back',
+    cards: [
+      { id: 3, name: 'Citi Double Cash' },
+      { id: 4, name: 'Chase Freedom Unlimited' },
+    ],
+  },
+];
 
 app.post('/api/location', (req, res) => {
   const { latitude, longitude } = req.body;
@@ -29,6 +54,14 @@ app.post('/api/location', (req, res) => {
   res.status(200).json({ status: 'success' });
 });
 
+app.get('/stores', (req, res) => {
+  res.json(stores);
+});
+
+app.get('/cards', (req, res) => {
+  res.json(cards);
+});
+
 if (process.env.NODE_ENV !== 'test') {
   app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
@@ -36,4 +69,5 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 module.exports = app;
+
 

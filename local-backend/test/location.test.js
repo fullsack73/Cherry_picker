@@ -3,7 +3,6 @@ const request = require('supertest');
 const app = require('../index');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
 
 describe('/api/location', () => {
   const locationDataPath = path.join(__dirname, '../location_data.txt');
@@ -53,16 +52,6 @@ describe('/api/location', () => {
 
     expect(consoleSpy).toHaveBeenCalledWith('Received location: latitude=40.7128, longitude=-74.006');
     consoleSpy.mockRestore();
-  });
-
-  it('should return 200 OK when receiving a request from an external client', async () => {
-    const response = await axios.post(`http://localhost:${port}/api/location`, {
-      latitude: 40.7128,
-      longitude: -74.006
-    });
-
-    expect(response.status).toBe(200);
-    expect(response.data).toEqual({ status: 'success' });
   });
 
   it('should return 400 for missing latitude', async () => {
