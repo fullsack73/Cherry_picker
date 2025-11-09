@@ -28,12 +28,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.launch
 import teamcherrypicker.com.api.ApiClient
 import teamcherrypicker.com.data.UserLocation
 import teamcherrypicker.com.ui.theme.Cherry_pickerTheme
+
+sealed class Screen(val route: String) {
+    object MainScreen : Screen("main_screen")
+    object AddCardScreen : Screen("add_card_screen")
+    object SettingsScreen : Screen("settings_screen")
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -58,13 +68,27 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             Cherry_pickerTheme {
-                LocationScreen(
-                    location = locationState.value,
-                    isLoading = isLoading,
-                    onRefreshClick = {
-                        checkLocationPermission()
+                val navController = rememberNavController()
+                NavHost(navController = navController, startDestination = Screen.MainScreen.route) {
+                    composable(Screen.MainScreen.route) {
+                        // Placeholder for MainScreen content
+                        LocationScreen(
+                            location = locationState.value,
+                            isLoading = isLoading,
+                            onRefreshClick = {
+                                checkLocationPermission()
+                            }
+                        )
                     }
-                )
+                    composable(Screen.AddCardScreen.route) {
+                        // Placeholder for AddCardScreen content
+                        Text("Add Card Screen")
+                    }
+                    composable(Screen.SettingsScreen.route) {
+                        // Placeholder for SettingsScreen content
+                        Text("Settings Screen")
+                    }
+                }
             }
         }
         checkLocationPermission()

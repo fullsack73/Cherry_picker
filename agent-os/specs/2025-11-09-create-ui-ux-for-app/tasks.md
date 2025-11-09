@@ -12,14 +12,14 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** android-engineer
 **Dependencies:** None
 
-- [ ] 1.0 Complete Core UI Setup & Navigation
-  - [ ] 1.1 Write 2-8 focused tests for main activity and navigation setup
+- [x] 1.0 Complete Core UI Setup & Navigation
+  - [x] 1.1 Write 2-8 focused tests for main activity and navigation setup
     - Test main activity launches correctly
     - Test basic navigation between screens (if implemented at this stage)
-  - [ ] 1.2 Set up `MainActivity` to host Jetpack Compose UI
-  - [ ] 1.3 Implement basic navigation structure using Jetpack Navigation Compose
-  - [ ] 1.4 Integrate `Cherry_pickerTheme` for consistent styling
-  - [ ] 1.5 Ensure Core UI Setup & Navigation tests pass
+  - [x] 1.2 Set up `MainActivity` to host Jetpack Compose UI
+  - [x] 1.3 Implement basic navigation structure using Jetpack Navigation Compose
+  - [x] 1.4 Integrate `Cherry_pickerTheme` for consistent styling
+  - [x] 1.5 Ensure Core UI Setup & Navigation tests pass
     - Run ONLY the 2-8 tests written in 1.1
 
 **Acceptance Criteria:**
