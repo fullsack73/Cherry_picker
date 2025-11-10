@@ -22,16 +22,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import teamcherrypicker.com.Screen
 import teamcherrypicker.com.data.RecommendedCard
 
 @Composable
-fun MainScreen() {
+fun MainScreen(navController: NavController) {
     val singapore = LatLng(1.35, 103.87)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(singapore, 10f)
@@ -81,7 +83,7 @@ fun MainScreen() {
                 IconButton(onClick = { /*TODO*/ }) {
                     // Icon(Icons.Filled.FilterList, contentDescription = "Filter")
                 }
-                IconButton(onClick = { /*TODO*/ }) {
+                IconButton(onClick = { navController.navigate(Screen.AddCardScreen.route) }) {
                     Icon(Icons.Filled.Settings, contentDescription = "Settings")
                 }
             }

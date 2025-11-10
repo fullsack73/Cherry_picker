@@ -79,14 +79,14 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** android-engineer
 **Dependencies:** Task Group 1
 
-- [ ] 4.0 Complete Credit Card Management UI
+- [x] 4.0 Complete Credit Card Management UI
   - [ ] 4.1 Write 2-8 focused tests for the add/manage cards screen
     - Test search bar and filter chips are functional
     - Test "My Cards" and "All Cards" lists display correctly
-  - [ ] 4.2 Implement the "Add Credit Card" screen layout
+  - [x] 4.2 Implement the "Add Credit Card" screen layout
     - Reference `planning/visuals/add_credit_cards_menu.png`
-  - [ ] 4.3 Implement search functionality and category filter chips
-  - [ ] 4.4 Implement "My Cards" and "All Cards" lists
+  - [x] 4.3 Implement search functionality and category filter chips
+  - [x] 4.4 Implement "My Cards" and "All Cards" lists
   - [ ] 4.5 Ensure Credit Card Management UI tests pass
     - Run ONLY the 2-8 tests written in 4.1
 

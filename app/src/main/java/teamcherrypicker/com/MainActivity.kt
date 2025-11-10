@@ -21,12 +21,15 @@ import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.launch
 import teamcherrypicker.com.api.ApiClient
 import teamcherrypicker.com.data.UserLocation
+import teamcherrypicker.com.ui.main.AddCardFormScreen
 import teamcherrypicker.com.ui.main.MainScreen
+import teamcherrypicker.com.ui.main.ManageCardsScreen
 import teamcherrypicker.com.ui.theme.Cherry_pickerTheme
 
 sealed class Screen(val route: String) {
     object MainScreen : Screen("main_screen")
     object AddCardScreen : Screen("add_card_screen")
+    object AddCardFormScreen : Screen("add_card_form_screen")
     object SettingsScreen : Screen("settings_screen")
 }
 
@@ -56,11 +59,13 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 NavHost(navController = navController, startDestination = Screen.MainScreen.route) {
                     composable(Screen.MainScreen.route) {
-                        MainScreen()
+                        MainScreen(navController)
                     }
                     composable(Screen.AddCardScreen.route) {
-                        // Placeholder for AddCardScreen content
-                        Text("Add Card Screen")
+                        ManageCardsScreen(navController)
+                    }
+                    composable(Screen.AddCardFormScreen.route) {
+                        AddCardFormScreen(navController)
                     }
                     composable(Screen.SettingsScreen.route) {
                         // Placeholder for SettingsScreen content
