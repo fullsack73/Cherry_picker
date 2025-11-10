@@ -102,13 +102,13 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** android-engineer
 **Dependencies:** Task Group 1
 
-- [ ] 5.0 Complete Settings UI
+- [x] 5.0 Complete Settings UI
   - [ ] 5.1 Write 2-8 focused tests for the settings dropdown menu
     - Test menu opens and closes
     - Test all menu items are visible and clickable
-  - [ ] 5.2 Implement the dropdown settings menu
+  - [x] 5.2 Implement the dropdown settings menu
     - Reference `planning/visuals/dropdown_settings.png`
-  - [ ] 5.3 Implement menu items: Dark Mode, Add Credit Card, Profile Settings, Notification Settings
+  - [x] 5.3 Implement menu items: Dark Mode, Add Credit Card, Profile Settings, Notification Settings
   - [ ] 5.4 Ensure Settings UI tests pass
     - Run ONLY the 2-8 tests written in 5.1
 

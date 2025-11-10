@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -55,11 +56,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            Cherry_pickerTheme {
+            var isDarkMode by remember { mutableStateOf(false) }
+            Cherry_pickerTheme(darkTheme = isDarkMode) {
                 val navController = rememberNavController()
                 NavHost(navController = navController, startDestination = Screen.MainScreen.route) {
                     composable(Screen.MainScreen.route) {
-                        MainScreen(navController)
+                        MainScreen(
+                            navController = navController,
+                            isDarkMode = isDarkMode,
+                            onToggleDarkMode = { isDarkMode = !isDarkMode }
+                        )
                     }
                     composable(Screen.AddCardScreen.route) {
                         ManageCardsScreen(navController)

@@ -1,9 +1,10 @@
 package teamcherrypicker.com.ui.main
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +24,11 @@ import teamcherrypicker.com.data.RecommendedCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(navController: NavController) {
+fun MainScreen(
+    navController: NavController,
+    isDarkMode: Boolean,
+    onToggleDarkMode: () -> Unit
+) {
     val singapore = LatLng(1.35, 103.87)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(singapore, 10f)
@@ -31,6 +36,7 @@ fun MainScreen(navController: NavController) {
     var text by remember { mutableStateOf("Search...") }
     var isRecommendationExpanded by remember { mutableStateOf(false) }
     val uiSettings by remember { mutableStateOf(MapUiSettings(zoomControlsEnabled = false)) }
+    var showMenu by remember { mutableStateOf(false) }
 
     val sampleCards = listOf(
         RecommendedCard(
@@ -57,8 +63,41 @@ fun MainScreen(navController: NavController) {
                     )
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.SettingsScreen.route) }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    IconButton(onClick = { showMenu = !showMenu }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Settings")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Dark Mode") },
+                            onClick = {
+                                onToggleDarkMode()
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add Credit Card") },
+                            onClick = {
+                                navController.navigate(Screen.AddCardScreen.route)
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Profile Settings") },
+                            onClick = {
+                                Log.d("Settings", "Profile Settings clicked")
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Notification Settings") },
+                            onClick = {
+                                Log.d("Settings", "Notification Settings clicked")
+                                showMenu = false
+                            }
+                        )
                     }
                 }
             )
