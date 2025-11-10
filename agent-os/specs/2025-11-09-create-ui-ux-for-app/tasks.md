@@ -34,15 +34,15 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** android-engineer
 **Dependencies:** Task Group 1
 
-- [ ] 2.0 Complete Main Screen UI
-  - [ ] 2.1 Write 2-8 focused tests for main screen layout and map integration
+- [x] 2.0 Complete Main Screen UI
+  - [x] 2.1 Write 2-8 focused tests for main screen layout and map integration
     - Test map component is visible
     - Test search bar and icon buttons are present
-  - [ ] 2.2 Implement the main screen layout with a map component, search bar, and settings/filter icons
+  - [x] 2.2 Implement the main screen layout with a map component, search bar, and settings/filter icons
     - Reference `planning/visuals/main_screen.png`
-  - [ ] 2.3 Integrate Google Maps Compose for the interactive map component
-  - [ ] 2.4 Implement custom store markers/icons on the map
-  - [ ] 2.5 Ensure Main Screen UI tests pass
+  - [x] 2.3 Integrate Google Maps Compose for the interactive map component
+  - [x] 2.4 Implement custom store markers/icons on the map
+  - [x] 2.5 Ensure Main Screen UI tests pass
     - Run ONLY the 2-8 tests written in 2.1
 
 **Acceptance Criteria:**
