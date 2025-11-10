@@ -12,32 +12,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = AccentGreen,
+    background = DarkBlue,
+    surface = CardDark,
+    onPrimary = DarkBlue,
+    onSecondary = LightSlate,
+    onBackground = LightSlate,
+    onSurface = LightSlate,
+    onSurfaceVariant = SlateBlue
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = DarkBlue,
+    background = LightGrey,
+    surface = White,
+    onPrimary = White,
+    onSecondary = DarkGrey,
+    onBackground = DarkGrey,
+    onSurface = DarkGrey,
+    onSurfaceVariant = SlateBlue
 )
 
 @Composable
 fun Cherry_pickerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Disable dynamic color to use our custom theme
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

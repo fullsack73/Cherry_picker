@@ -44,6 +44,8 @@ android {
 
 dependencies {
 
+    implementation("androidx.compose.material3:material3:1.1.2")
+    implementation("androidx.compose.material:material-icons-extended:1.5.4")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -74,4 +76,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.2.0")
     implementation("com.google.maps.android:maps-compose:4.3.3")
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+    implementation("androidx.compose.material3:material3-window-size-class:1.1.2")
+    
 }
