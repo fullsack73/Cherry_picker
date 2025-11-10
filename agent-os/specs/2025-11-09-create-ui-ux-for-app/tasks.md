@@ -57,14 +57,14 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** android-engineer
 **Dependencies:** Task Group 2
 
-- [ ] 3.0 Complete Card Recommendation UI
-  - [ ] 3.1 Write 2-8 focused tests for card recommendation list and individual card items
+- [x] 3.0 Complete Card Recommendation UI
+  - [x] 3.1 Write 2-8 focused tests for card recommendation list and individual card items
     - Test list displays correctly when expanded
     - Test individual card item elements (benefits, match rate, buttons) are visible
-  - [ ] 3.2 Implement the expandable card recommendation list component
+  - [x] 3.2 Implement the expandable card recommendation list component
     - Reference `planning/visuals/card_list_when_store_selected.png`, `planning/visuals/card_list_extended.png`
-  - [ ] 3.3 Design and implement individual card items with benefits, match rates, and action buttons
-  - [ ] 3.4 Ensure Card Recommendation UI tests pass
+  - [x] 3.3 Design and implement individual card items with benefits, match rates, and action buttons
+  - [x] 3.4 Ensure Card Recommendation UI tests pass
     - Run ONLY the 2-8 tests written in 3.1
 
 **Acceptance Criteria:**
