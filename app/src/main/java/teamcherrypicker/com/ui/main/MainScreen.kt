@@ -58,12 +58,31 @@ fun MainScreen(
         )
     )
 
+    // Add: simple model for mock store markers and selection state
+    data class StoreMarker(val id: String, val position: LatLng, val title: String)
+
+    val mockStoreMarkers = listOf(
+        StoreMarker("s1", LatLng(1.3521, 103.8198), "Orchard Road - Mock Store"),
+        StoreMarker("s2", LatLng(1.2833, 103.8600), "Marina Bay - Mock Store"),
+        StoreMarker("s3", LatLng(1.3000, 103.8000), "Bugis - Mock Store")
+    )
+
+    var selectedMarker by remember { mutableStateOf<StoreMarker?>(null) }
+
+    // Use conditional peek height to hide sheet when no selection
+    val effectivePeek = if (selectedMarker != null) 220.dp else 0.dp
+
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
         sheetContent = {
-            RecommendationSheetContent(cards = sampleCards)
+            if (selectedMarker != null) {
+                RecommendationSheetContent(cards = sampleCards, selectedTitle = selectedMarker!!.title)
+            } else {
+                // Completely empty content when no marker selected
+                Box(modifier = Modifier.height(0.dp))
+            }
         },
-        sheetPeekHeight = 120.dp,
+        sheetPeekHeight = effectivePeek,
         sheetShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
@@ -76,10 +95,30 @@ fun MainScreen(
                 cameraPositionState = cameraPositionState,
                 uiSettings = uiSettings
             ) {
+                // Render mock store markers and wire up clicks to set selectedMarker
+                mockStoreMarkers.forEach { store ->
+                    Marker(
+                        state = MarkerState(position = store.position),
+                        title = store.title,
+                        snippet = "Tap for recommendations",
+                        onClick = {
+                            selectedMarker = store
+                            // Consume the click
+                            true
+                        }
+                    )
+                }
+
+                // Optionally keep one default marker (not selected by default)
                 Marker(
                     state = MarkerState(position = singapore),
                     title = "Singapore",
-                    snippet = "Marker in Singapore"
+                    snippet = "Marker in Singapore",
+                    onClick = {
+                        // deselect any store and do nothing else
+                        selectedMarker = null
+                        true
+                    }
                 )
             }
 
@@ -90,15 +129,7 @@ fun MainScreen(
                 onToggleDarkMode = onToggleDarkMode
             )
 
-            FloatingActionButton(
-                onClick = { navController.navigate(Screen.AddCardScreen.route) },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-                    .padding(bottom = 110.dp) // Adjust to be above the peeked sheet
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add Card")
-            }
+            // Removed the bottom-right "+" FloatingActionButton per request
         }
     }
 }
@@ -191,7 +222,7 @@ fun FloatingSearchBar(
 }
 
 @Composable
-fun RecommendationSheetContent(cards: List<RecommendedCard>) {
+fun RecommendationSheetContent(cards: List<RecommendedCard>, selectedTitle: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -208,7 +239,7 @@ fun RecommendationSheetContent(cards: List<RecommendedCard>) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            "Recommendations for this area",
+            "Recommendations for $selectedTitle",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 8.dp)
