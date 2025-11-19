@@ -5,14 +5,22 @@ const csv = require('csv-parser');
 const { createDatabase } = require('../db');
 
 const DEFAULT_CARDS_CSV = path.join(__dirname, '..', '..', '..', 'data', 'cards_db.csv');
-const DEFAULT_MERCHANTS_CSV = path.join(
-  __dirname,
-  '..',
-  '..',
-  '..',
-  'data',
-  'merchants_db (1).csv'
-);
+
+const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data');
+const MERCHANT_CSV_CANDIDATES = ['merchants_db.csv', 'merchants_db (1).csv'];
+
+function resolveDefaultMerchantsCsv() {
+  for (const candidate of MERCHANT_CSV_CANDIDATES) {
+    const candidatePath = path.join(DATA_DIR, candidate);
+    if (fs.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return path.join(DATA_DIR, MERCHANT_CSV_CANDIDATES[0]);
+}
+
+const DEFAULT_MERCHANTS_CSV = resolveDefaultMerchantsCsv();
 const DEFAULT_MAPPING_PATH = path.join(__dirname, '..', '..', 'config', 'category-mapping.json');
 
 function readJsonFile(mappingPath = DEFAULT_MAPPING_PATH) {
