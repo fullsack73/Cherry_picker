@@ -12,18 +12,18 @@ Assigned roles: database-engineer, api-engineer, android-engineer, testing-engin
 **Assigned implementer:** database-engineer  
 **Dependencies:** None
 
-- [ ] 1.0 Complete ingestion and persistence layer
-  - [ ] 1.1 Write 3-5 focused ingestion tests (parsing edge cases, category normalization, idempotent seeding)
+- [x] 1.0 Complete ingestion and persistence layer
+  - [x] 1.1 Write 3-5 focused ingestion tests (parsing edge cases, category normalization, idempotent seeding)
     - Limit to core success/failure paths only
-  - [ ] 1.2 Design SQLite schema for cards, benefits, merchants, category mappings, and refresh logs
+  - [x] 1.2 Design SQLite schema for cards, benefits, merchants, category mappings, and refresh logs
     - Include indexes on latitude/longitude and category columns
     - Follow naming/constraint standards in `standards/backend/models.md`
-  - [ ] 1.3 Implement streaming CSV loader that normalizes UTF-8 text and trims whitespace
+  - [x] 1.3 Implement streaming CSV loader that normalizes UTF-8 text and trims whitespace
     - Map `카드혜택_분류` to internal benefit categories via configurable mapping file
-  - [ ] 1.4 Seed database on boot and expose CLI `npm run load-data` to re-run ingestion without server restart
+  - [x] 1.4 Seed database on boot and expose CLI `npm run load-data` to re-run ingestion without server restart
     - Ensure reruns upsert records and archive prior loads in refresh logs
-  - [ ] 1.5 Validate inserts with lightweight sanity queries (counts, distinct categories)
-  - [ ] 1.6 Run ONLY tests from 1.1 and confirm migrations/seed complete within 5 seconds
+  - [x] 1.5 Validate inserts with lightweight sanity queries (counts, distinct categories)
+  - [x] 1.6 Run ONLY tests from 1.1 and confirm migrations/seed complete within 5 seconds
 
 **Acceptance Criteria:**
 - Ingestion tests from 1.1 pass

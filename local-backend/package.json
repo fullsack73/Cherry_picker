@@ -3,14 +3,17 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "NODE_ENV=test jest"
+    "test": "NODE_ENV=test jest",
+    "load-data": "node src/load-data-cli.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "better-sqlite3": "^9.4.3",
     "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
     "express": "^4.19.2"
   },
   "devDependencies": {
