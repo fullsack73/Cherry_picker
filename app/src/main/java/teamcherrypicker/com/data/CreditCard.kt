@@ -1,18 +1,28 @@
 package teamcherrypicker.com.data
 
-data class CreditCard(
-    val id: String,
+data class CardSummary(
+    val id: Int,
     val name: String,
     val issuer: String,
-    val category: CardCategory,
-    val logoUrl: String // URL to the card's logo
+    val normalizedCategories: List<String>
 )
 
-enum class CardCategory(val displayName: String) {
-    TRAVEL("Travel"),
-    CASHBACK("Cashback"),
-    DINING("Dining"),
-    GROCERIES("Groceries"),
-    SHOPPING("Shopping"),
-    GAS("Gas")
-}
+data class CardsMeta(
+    val total: Int,
+    val limit: Int,
+    val offset: Int,
+    val lastRefreshedAt: String?,
+    val dataSource: String?
+)
+
+data class CardsPage(
+    val cards: List<CardSummary>,
+    val meta: CardsMeta
+)
+
+data class CardBenefit(
+    val id: Int,
+    val description: String,
+    val normalizedCategory: String,
+    val keyword: String?
+)

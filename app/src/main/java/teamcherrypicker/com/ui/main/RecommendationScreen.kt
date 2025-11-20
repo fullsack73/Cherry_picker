@@ -16,7 +16,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import teamcherrypicker.com.data.RecommendedCard
+import teamcherrypicker.com.data.CardBenefit
+import teamcherrypicker.com.data.CardSummary
+
+data class RecommendedCard(
+    val summary: CardSummary,
+    val matchRate: Double,
+    val benefits: List<CardBenefit>
+)
 
 @Composable
 fun CardBenefitItem(benefit: String) {
@@ -46,7 +53,11 @@ fun RecommendationCardItem(card: RecommendedCard) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = card.cardName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = card.summary.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
                 Text(
                     text = "${(card.matchRate * 100).toInt()}% Match",
                     color = MaterialTheme.colorScheme.primary,
@@ -56,7 +67,7 @@ fun RecommendationCardItem(card: RecommendedCard) {
             Spacer(modifier = Modifier.height(12.dp))
             Column {
                 card.benefits.forEach { benefit ->
-                    CardBenefitItem(benefit = benefit)
+                    CardBenefitItem(benefit = benefit.description)
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))

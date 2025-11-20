@@ -5,6 +5,11 @@ const os = require('os');
 const cors = require('cors');
 const { createDatabase } = require('./src/db');
 const { loadData } = require('./src/ingest/loadData');
+const {
+  fetchPaginatedCards,
+  fetchCardBenefits,
+  fetchLatestRefreshMetadata,
+} = require('./src/queries/cards');
 
 const app = express();
 const port = 3000;
@@ -34,22 +39,23 @@ const stores = [
   { id: 3, name: 'Store C', latitude: 34.0530, longitude: -118.2435 },
 ];
 
-const cards = [
-  {
-    category: 'Travel',
-    cards: [
-      { id: 1, name: 'Chase Sapphire Preferred' },
-      { id: 2, name: 'Capital One Venture Rewards' },
-    ],
-  },
-  {
-    category: 'Cash Back',
-    cards: [
-      { id: 3, name: 'Citi Double Cash' },
-      { id: 4, name: 'Chase Freedom Unlimited' },
-    ],
-  },
-];
+function sendError(res, status, code, message) {
+  return res.status(status).json({ error: { code, message } });
+}
+
+function parseNonNegativeInteger(value) {
+  if (value === undefined) {
+    return { ok: true, value: undefined };
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return { ok: false };
+  }
+
+  return { ok: true, value: parsed };
+}
 
 app.post('/api/location', (req, res) => {
   const { latitude, longitude } = req.body;
@@ -75,8 +81,62 @@ app.get('/stores', (req, res) => {
   res.json(stores);
 });
 
-app.get('/cards', (req, res) => {
-  res.json(cards);
+app.get('/api/cards', (req, res) => {
+  const { limit: limitParam, offset: offsetParam, category } = req.query;
+
+  const limitResult = parseNonNegativeInteger(limitParam);
+  if (!limitResult.ok) {
+    return sendError(res, 400, 'INVALID_LIMIT', 'limit must be a non-negative integer');
+  }
+
+  const offsetResult = parseNonNegativeInteger(offsetParam);
+  if (!offsetResult.ok) {
+    return sendError(res, 400, 'INVALID_OFFSET', 'offset must be a non-negative integer');
+  }
+
+  let normalizedCategory;
+  if (category !== undefined) {
+    if (typeof category !== 'string' || category.trim().length === 0) {
+      return sendError(res, 400, 'INVALID_CATEGORY', 'category must be a non-empty string when provided');
+    }
+    normalizedCategory = category.trim().toUpperCase();
+  }
+
+  const { cards: data, total, limit, offset } = fetchPaginatedCards(db, {
+    limit: limitResult.value,
+    offset: offsetResult.value,
+    normalizedCategory,
+  });
+
+  const metadata = fetchLatestRefreshMetadata(db);
+
+  return res.json({
+    data,
+    meta: {
+      total,
+      limit,
+      offset,
+      lastRefreshedAt: metadata.lastRefreshedAt,
+      dataSource: metadata.dataSource,
+    },
+  });
+});
+
+app.get('/api/cards/:cardId/benefits', (req, res) => {
+  const cardId = Number(req.params.cardId);
+
+  if (!Number.isInteger(cardId) || cardId <= 0) {
+    return sendError(res, 400, 'INVALID_CARD_ID', 'cardId must be a positive integer');
+  }
+
+  const cardExists = db.prepare('SELECT 1 FROM cards WHERE id = ? LIMIT 1').get(cardId);
+  if (!cardExists) {
+    return sendError(res, 404, 'CARD_NOT_FOUND', 'Card not found');
+  }
+
+  const benefits = fetchCardBenefits(db, cardId);
+
+  return res.json({ data: benefits });
 });
 
 if (process.env.NODE_ENV !== 'test') {

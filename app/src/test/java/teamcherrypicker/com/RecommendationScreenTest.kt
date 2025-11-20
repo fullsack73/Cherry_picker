@@ -8,8 +8,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import teamcherrypicker.com.data.RecommendedCard
+import teamcherrypicker.com.data.CardBenefit
+import teamcherrypicker.com.data.CardSummary
 import teamcherrypicker.com.ui.main.RecommendationList
+import teamcherrypicker.com.ui.main.RecommendedCard
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest=Config.NONE)
@@ -20,14 +22,30 @@ class RecommendationScreenTest {
 
     private val sampleCards = listOf(
         RecommendedCard(
-            cardName = "Chase Sapphire Preferred",
+            summary = CardSummary(
+                id = 1,
+                name = "Chase Sapphire Preferred",
+                issuer = "Chase",
+                normalizedCategories = listOf("TRAVEL", "DINING")
+            ),
             matchRate = 0.95,
-            benefits = listOf("5x points on travel", "3x points on dining")
+            benefits = listOf(
+                CardBenefit(id = 101, description = "5x points on travel", normalizedCategory = "TRAVEL", keyword = null),
+                CardBenefit(id = 102, description = "3x points on dining", normalizedCategory = "DINING", keyword = null)
+            )
         ),
         RecommendedCard(
-            cardName = "Amex Gold",
+            summary = CardSummary(
+                id = 2,
+                name = "Amex Gold",
+                issuer = "American Express",
+                normalizedCategories = listOf("DINING", "GROCERIES")
+            ),
             matchRate = 0.92,
-            benefits = listOf("4x points on dining", "4x points at U.S. Supermarkets")
+            benefits = listOf(
+                CardBenefit(id = 201, description = "4x points on dining", normalizedCategory = "DINING", keyword = null),
+                CardBenefit(id = 202, description = "4x points at U.S. Supermarkets", normalizedCategory = "GROCERIES", keyword = null)
+            )
         )
     )
 
@@ -64,7 +82,7 @@ class RecommendationScreenTest {
             teamcherrypicker.com.ui.main.RecommendationCardItem(card = card)
         }
 
-        composeTestRule.onNodeWithText(card.cardName).assertIsDisplayed()
+        composeTestRule.onNodeWithText(card.summary.name).assertIsDisplayed()
         composeTestRule.onNodeWithText("95% Match").assertIsDisplayed()
         composeTestRule.onNodeWithText("5x points on travel").assertIsDisplayed()
         composeTestRule.onNodeWithText("3x points on dining").assertIsDisplayed()

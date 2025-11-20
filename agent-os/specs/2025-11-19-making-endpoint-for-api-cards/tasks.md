@@ -12,12 +12,12 @@ Assigned roles: database-engineer, api-engineer, testing-engineer
 **Assigned implementer:** database-engineer  
 **Dependencies:** Ingestion pipeline already loads data
 
-- [ ] 1.0 Implement database helpers for cards
-  - [ ] 1.1 Write 2-4 focused unit tests covering pagination, category filtering, and metadata query helpers
-  - [ ] 1.2 Create query module (e.g., `src/queries/cards.js`) that fetches paginated cards with optional `normalized_category` filter
-  - [ ] 1.3 Add helper to retrieve benefits for a given card id ordered by normalized category
-  - [ ] 1.4 Expose latest refresh log info utility to provide `lastRefreshedAt` and optional `dataSource` label
-  - [ ] 1.5 Run only the new tests from 1.1 to confirm helpers behave as expected
+- [x] 1.0 Implement database helpers for cards
+  - [x] 1.1 Write 2-4 focused unit tests covering pagination, category filtering, and metadata query helpers
+  - [x] 1.2 Create query module (e.g., `src/queries/cards.js`) that fetches paginated cards with optional `normalized_category` filter
+  - [x] 1.3 Add helper to retrieve benefits for a given card id ordered by normalized category
+  - [x] 1.4 Expose latest refresh log info utility to provide `lastRefreshedAt` and optional `dataSource` label
+  - [x] 1.5 Run only the new tests from 1.1 to confirm helpers behave as expected
 
 **Acceptance Criteria:**
 - Pagination and category filtering return consistent results backed by SQLite
@@ -31,12 +31,12 @@ Assigned roles: database-engineer, api-engineer, testing-engineer
 **Assigned implementer:** api-engineer  
 **Dependencies:** Task Group 1
 
-- [ ] 2.0 Build `/api/cards` and benefits endpoints
-  - [ ] 2.1 Write 3-6 SuperTest cases covering default pagination, category filter, invalid params, unknown card, and metadata fields
-  - [ ] 2.2 Implement `GET /api/cards` handler using query utilities; return `{ data, meta }` envelope with pagination + `lastRefreshedAt`, `dataSource`
-  - [ ] 2.3 Implement `GET /api/cards/:cardId/benefits` returning benefit array or `404` with standard error envelope
-  - [ ] 2.4 Remove legacy `/cards` mock route and any static data references
-  - [ ] 2.5 Ensure new API tests from 2.1 pass (run only those tests)
+- [x] 2.0 Build `/api/cards` and benefits endpoints
+  - [x] 2.1 Write 3-6 SuperTest cases covering default pagination, category filter, invalid params, unknown card, and metadata fields
+  - [x] 2.2 Implement `GET /api/cards` handler using query utilities; return `{ data, meta }` envelope with pagination + `lastRefreshedAt`, `dataSource`
+  - [x] 2.3 Implement `GET /api/cards/:cardId/benefits` returning benefit array or `404` with standard error envelope
+  - [x] 2.4 Remove legacy `/cards` mock route and any static data references
+  - [x] 2.5 Ensure new API tests from 2.1 pass (run only those tests)
 
 **Acceptance Criteria:**
 - `/api/cards` returns real card data with pagination, optional category filter, and metadata
@@ -50,12 +50,12 @@ Assigned roles: database-engineer, api-engineer, testing-engineer
 **Assigned implementer:** android-engineer  
 **Dependencies:** Task Group 2
 
-- [ ] 3.0 Update Android client to consume new API
-  - [ ] 3.1 Write 2-4 focused unit or integration tests covering repository parsing of new payload, metadata handling, and pagination inputs
-  - [ ] 3.2 Update network layer to point to `/api/cards` endpoint and new benefits route
-  - [ ] 3.3 Adjust models/viewmodels to accommodate pagination metadata and separate benefit calls
-  - [ ] 3.4 Remove reliance on hardcoded mock card data in Android layer
-  - [ ] 3.5 Run only the new Android tests from 3.1
+- [x] 3.0 Update Android client to consume new API
+  - [x] 3.1 Write 2-4 focused unit or integration tests covering repository parsing of new payload, metadata handling, and pagination inputs
+  - [x] 3.2 Update network layer to point to `/api/cards` endpoint and new benefits route
+  - [x] 3.3 Adjust models/viewmodels to accommodate pagination metadata and separate benefit calls
+  - [x] 3.4 Remove reliance on hardcoded mock card data in Android layer
+  - [x] 3.5 Run only the new Android tests from 3.1
 
 **Acceptance Criteria:**
 - Android client fetches live data from `/api/cards`

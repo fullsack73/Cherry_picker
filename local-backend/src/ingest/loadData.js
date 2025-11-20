@@ -28,6 +28,23 @@ function readJsonFile(mappingPath = DEFAULT_MAPPING_PATH) {
   return JSON.parse(raw);
 }
 
+function readField(row, key) {
+  if (!row || typeof row !== 'object') {
+    return '';
+  }
+
+  if (row[key] !== undefined) {
+    return row[key];
+  }
+
+  const bomPrefixedKey = `\uFEFF${key}`;
+  if (row[bomPrefixedKey] !== undefined) {
+    return row[bomPrefixedKey];
+  }
+
+  return '';
+}
+
 function normalizeUnicode(value) {
   if (typeof value !== 'string') return '';
   return value.replace(/\uFEFF/g, '').trim();
@@ -71,7 +88,7 @@ async function loadCardsData(cardsCsvPath, categoryMap) {
   const benefits = [];
 
   await parseCsv(cardsCsvPath, (row) => {
-    const cardName = normalizeUnicode(row['card_name']);
+    const cardName = normalizeUnicode(readField(row, 'card_name'));
     if (!cardName) {
       return;
     }
@@ -81,9 +98,9 @@ async function loadCardsData(cardsCsvPath, categoryMap) {
       cardMap.set(cardName, { name: cardName, issuer });
     }
 
-    const description = normalizeUnicode(row['상세_혜택']);
-    const keyword = normalizeUnicode(row['혜택_키워드']);
-    const sourceCategory = normalizeUnicode(row['카드혜택_분류']) || '기타';
+    const description = normalizeUnicode(readField(row, '상세_혜택'));
+    const keyword = normalizeUnicode(readField(row, '혜택_키워드'));
+    const sourceCategory = normalizeUnicode(readField(row, '카드혜택_분류')) || '기타';
     const normalizedCategory = categoryMap[sourceCategory] || 'OTHER';
 
     benefits.push({
@@ -105,20 +122,20 @@ async function loadMerchantData(merchantsCsvPath, categoryMap) {
   const merchants = [];
 
   await parseCsv(merchantsCsvPath, (row) => {
-    const name = normalizeUnicode(row['상호명']);
+    const name = normalizeUnicode(readField(row, '상호명'));
     if (!name) {
       return;
     }
 
-    const branch = normalizeUnicode(row['지점명']);
-    const address = normalizeUnicode(row['도로명주소']);
-    const lng = Number(normalizeUnicode(row['경도']));
-    const lat = Number(normalizeUnicode(row['위도']));
+    const branch = normalizeUnicode(readField(row, '지점명'));
+    const address = normalizeUnicode(readField(row, '도로명주소'));
+    const lng = Number(normalizeUnicode(readField(row, '경도')));
+    const lat = Number(normalizeUnicode(readField(row, '위도')));
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
       return;
     }
 
-    const sourceCategory = normalizeUnicode(row['카드혜택_분류']) || '기타';
+    const sourceCategory = normalizeUnicode(readField(row, '카드혜택_분류')) || '기타';
     const normalizedCategory = categoryMap[sourceCategory] || 'OTHER';
 
     merchants.push({

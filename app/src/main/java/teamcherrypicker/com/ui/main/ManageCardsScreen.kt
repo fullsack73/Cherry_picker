@@ -1,57 +1,98 @@
 package teamcherrypicker.com.ui.main
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import teamcherrypicker.com.Screen
-import teamcherrypicker.com.data.CardCategory
-import teamcherrypicker.com.data.CreditCard
+import teamcherrypicker.com.data.CardSummary
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ManageCardsScreen(navController: NavController) {
+    val viewModel: CardsViewModel = viewModel(factory = CardsViewModel.provideFactory())
+    val uiState by viewModel.uiState.collectAsState()
+
     var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf<CardCategory?>(null) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    val savedCardIds = remember { mutableStateListOf<Int>() }
 
-    // Convert to mutable state
-    val myCards = remember {
-        mutableStateListOf(
-            CreditCard("1", "Chase Sapphire Preferred", "Chase", CardCategory.TRAVEL, ""),
-            CreditCard("2", "Amex Gold", "American Express", CardCategory.DINING, "")
-        )
-    }
-    val allCards = remember {
-        mutableStateListOf(
-            CreditCard("3", "Citi Double Cash", "Citi", CardCategory.CASHBACK, ""),
-            CreditCard("4", "Capital One Venture", "Capital One", CardCategory.TRAVEL, ""),
-            CreditCard("5", "Discover It", "Discover", CardCategory.CASHBACK, ""),
-            CreditCard("6", "Chase Freedom Flex", "Chase", CardCategory.SHOPPING, "")
-        )
-    }
-
-    val onAddCard: (CreditCard) -> Unit = { card ->
-        if (!myCards.contains(card)) {
-            myCards.add(card)
-            allCards.remove(card)
+    LaunchedEffect(uiState.cards) {
+        if (uiState.cards.isNotEmpty() && savedCardIds.isEmpty()) {
+            savedCardIds.addAll(uiState.cards.take(2).map { it.id })
         }
     }
 
-    val onRemoveCard: (CreditCard) -> Unit = { card ->
-        if (myCards.contains(card)) {
-            myCards.remove(card)
-            allCards.add(card)
+    val availableCategories = remember(uiState.cards) {
+        uiState.cards
+            .flatMap { it.normalizedCategories }
+            .map { it.uppercase() }
+            .distinct()
+            .sorted()
+    }
+
+    val filteredCards = remember(uiState.cards, searchQuery, selectedCategory) {
+        uiState.cards.filter { card ->
+            val matchesQuery = card.name.contains(searchQuery, ignoreCase = true) ||
+                card.issuer.contains(searchQuery, ignoreCase = true)
+            val matchesCategory = selectedCategory == null ||
+                card.normalizedCategories.any { it.equals(selectedCategory, ignoreCase = true) }
+            matchesQuery && matchesCategory
         }
+    }
+
+    val myCards = filteredCards.filter { savedCardIds.contains(it.id) }
+    val discoverCards = filteredCards.filter { !savedCardIds.contains(it.id) }
+
+    val onAddCard: (CardSummary) -> Unit = { card ->
+        if (!savedCardIds.contains(card.id)) {
+            savedCardIds.add(card.id)
+        }
+    }
+
+    val onRemoveCard: (CardSummary) -> Unit = { card ->
+        savedCardIds.remove(card.id)
     }
 
     Scaffold(
@@ -71,7 +112,32 @@ fun ManageCardsScreen(navController: NavController) {
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(horizontal = 16.dp)) {
+        Column(modifier = Modifier
+            .padding(padding)
+            .padding(horizontal = 16.dp)) {
+            if (uiState.isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            uiState.meta?.let { meta ->
+                Text(
+                    text = "Last refreshed: ${meta.lastRefreshedAt ?: "Unknown"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            uiState.errorMessage?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
             // Search Bar
             OutlinedTextField(
                 value = searchQuery,
@@ -85,25 +151,44 @@ fun ManageCardsScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(CardCategory.values()) { category ->
+                item {
+                    FilterChip(
+                        selected = selectedCategory == null,
+                        onClick = { selectedCategory = null },
+                        label = { Text("All") }
+                    )
+                }
+                items(availableCategories) { category ->
                     FilterChip(
                         selected = selectedCategory == category,
-                        onClick = { selectedCategory = if (selectedCategory == category) null else category },
-                        label = { Text(category.displayName) }
+                        onClick = {
+                            selectedCategory = if (selectedCategory == category) null else category
+                        },
+                        label = { Text(category) }
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val filteredMyCards = myCards.filter { it.name.contains(searchQuery, ignoreCase = true) && (selectedCategory == null || it.category == selectedCategory) }
-            val filteredAllCards = allCards.filter { it.name.contains(searchQuery, ignoreCase = true) && (selectedCategory == null || it.category == selectedCategory) }
-
             // "My Cards" List
             Text("My Cards", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                items(filteredMyCards) { card ->
-                    CardListItem(card = card, buttonText = "Remove", onClick = { onRemoveCard(card) })
+            if (myCards.isEmpty()) {
+                Text(
+                    text = "No cards saved yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                    items(myCards, key = { it.id }) { card ->
+                        ManageCardListItem(
+                            card = card,
+                            buttonText = "Remove",
+                            onClick = { onRemoveCard(card) }
+                        )
+                    }
                 }
             }
 
@@ -112,16 +197,21 @@ fun ManageCardsScreen(navController: NavController) {
             // "All Cards" List
             Text("All Cards", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             LazyColumn {
-                items(filteredAllCards) { card ->
-                    CardListItem(card = card, buttonText = "Add", onClick = { onAddCard(card) })
+                items(discoverCards, key = { it.id }) { card ->
+                    ManageCardListItem(
+                        card = card,
+                        buttonText = "Add",
+                        onClick = { onAddCard(card) }
+                    )
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun CardListItem(card: CreditCard, buttonText: String, onClick: () -> Unit) {
+fun ManageCardListItem(card: CardSummary, buttonText: String, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -130,6 +220,14 @@ fun CardListItem(card: CreditCard, buttonText: String, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(card.name, fontWeight = FontWeight.Bold)
                 Text(card.issuer, style = MaterialTheme.typography.bodySmall)
+                if (card.normalizedCategories.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        card.normalizedCategories.forEach { category ->
+                            AssistChip(onClick = {}, label = { Text(category) })
+                        }
+                    }
+                }
             }
             Button(onClick = onClick) {
                 Text(buttonText)
