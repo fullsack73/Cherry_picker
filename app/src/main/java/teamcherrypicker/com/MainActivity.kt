@@ -19,9 +19,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import teamcherrypicker.com.api.ApiClient
 import teamcherrypicker.com.data.UserLocation
+import teamcherrypicker.com.location.LocationPermissionStatus
+import teamcherrypicker.com.location.LocationUiState
 import teamcherrypicker.com.ui.main.AddCardFormScreen
 import teamcherrypicker.com.ui.main.MainScreen
 import teamcherrypicker.com.ui.main.ManageCardsScreen
@@ -39,16 +44,17 @@ class MainActivity : ComponentActivity() {
     private val fusedLocationClient by lazy {
         LocationServices.getFusedLocationProviderClient(this)
     }
-    private val locationState = mutableStateOf("Location not available")
-    private var isLoading by mutableStateOf(false)
+    private val locationUiState = MutableStateFlow(LocationUiState())
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
             ) {
+                updatePermissionStatus(LocationPermissionStatus.Granted)
                 getLocation()
             } else {
+                updatePermissionStatus(LocationPermissionStatus.Denied)
                 Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show()
             }
         }
@@ -64,7 +70,8 @@ class MainActivity : ComponentActivity() {
                         MainScreen(
                             navController = navController,
                             isDarkMode = isDarkMode,
-                            onToggleDarkMode = { isDarkMode = !isDarkMode }
+                            onToggleDarkMode = { isDarkMode = !isDarkMode },
+                            locationUiStateFlow = locationUiState
                         )
                     }
                     composable(Screen.AddCardScreen.route) {
@@ -93,9 +100,11 @@ class MainActivity : ComponentActivity() {
                 this,
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED -> {
+                updatePermissionStatus(LocationPermissionStatus.Granted)
                 getLocation()
             }
             else -> {
+                updatePermissionStatus(LocationPermissionStatus.Unknown)
                 requestPermissionLauncher.launch(
                     arrayOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -116,20 +125,30 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            isLoading = true
+            setLoading(true)
             fusedLocationClient.getCurrentLocation(LocationRequest.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener { location ->
                     if (location != null) {
-                        locationState.value = "Latitude: ${location.latitude}, Longitude: ${location.longitude}"
+                        val latLng = LatLng(location.latitude, location.longitude)
+                        locationUiState.update {
+                            it.copy(
+                                isLoading = false,
+                                lastKnownLocation = latLng,
+                                lastUpdatedMillis = System.currentTimeMillis(),
+                                permissionStatus = LocationPermissionStatus.Granted
+                            )
+                        }
                         sendLocationToBackend(location.latitude, location.longitude)
                     } else {
-                        locationState.value = "Location not found"
+                        locationUiState.update { current ->
+                            current.copy(isLoading = false)
+                        }
                     }
-                    isLoading = false
                 }
                 .addOnFailureListener {
-                    locationState.value = "Failed to get location"
-                    isLoading = false
+                    locationUiState.update { current ->
+                        current.copy(isLoading = false)
+                    }
                 }
         }
     }
@@ -150,5 +169,13 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(this@MainActivity, "Network error", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun updatePermissionStatus(status: LocationPermissionStatus) {
+        locationUiState.update { it.copy(permissionStatus = status) }
+    }
+
+    private fun setLoading(loading: Boolean) {
+        locationUiState.update { it.copy(isLoading = loading) }
     }
 }

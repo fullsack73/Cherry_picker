@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.gms.maps.model.LatLng
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,10 +29,13 @@ import teamcherrypicker.com.api.CardsMetaDto
 import teamcherrypicker.com.api.CardsResponse
 import teamcherrypicker.com.data.CardsRepository
 import teamcherrypicker.com.data.UserLocation
+import teamcherrypicker.com.location.LocationPermissionStatus
+import teamcherrypicker.com.location.LocationUiState
 import teamcherrypicker.com.ui.main.CardsViewModel
 import teamcherrypicker.com.ui.main.LocalMapSurfaceRenderer
 import teamcherrypicker.com.ui.main.MapSurfaceRenderer
 import teamcherrypicker.com.ui.main.MainScreen
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
@@ -77,12 +81,21 @@ class MainScreenTest {
                 }
             }
             val cardsViewModel = remember { createTestCardsViewModel() }
+            val locationFlow = remember {
+                MutableStateFlow(
+                    LocationUiState(
+                        permissionStatus = LocationPermissionStatus.Granted,
+                        lastKnownLocation = LatLng(1.35, 103.87)
+                    )
+                )
+            }
 
             CompositionLocalProvider(LocalMapSurfaceRenderer provides fakeMapRenderer) {
                 MainScreen(
                     navController = navController,
                     isDarkMode = false,
                     onToggleDarkMode = {},
+                    locationUiStateFlow = locationFlow,
                     cardsViewModel = cardsViewModel
                 )
             }

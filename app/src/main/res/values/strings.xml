@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">Cherry_picker</string>
     <string name="map_content_description">Interactive map showing store locations</string>
+    <string name="recenter_fab_content_description">Recenter map to your location</string>
+    <string name="location_status_loading">Getting your location...</string>
+    <string name="location_status_permission_denied">Turn on location access to recenter.</string>
+    <string name="location_status_fallback">Showing %1$s as a fallback</string>
+    <string name="location_status_fallback_city">Seoul</string>
 </resources>

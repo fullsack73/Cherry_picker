@@ -29,13 +29,13 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** android-engineer  
 **Dependencies:** Task Group 1
 
-- [ ] 2.0 Implement camera centering pipeline
-  - [ ] 2.1 Write 3-5 focused unit tests for a new `MapStateCoordinator` (or equivalent) validating camera target updates, debounce behavior, and manual vs. automatic recenter rules.
-  - [ ] 2.2 Expose location flow from `MainActivity` (or shared ViewModel) so Compose layer observes permission + coordinate updates.
-  - [ ] 2.3 Wire `rememberCameraPositionState` to the coordinator, auto-centering on latest location with zoom ≈15 while allowing user gestures without immediate snap-back.
-  - [ ] 2.4 Add a floating recenter FAB (48dp min) that re-triggers camera animation to the user’s current position when tapped.
-  - [ ] 2.5 Show lightweight progress or placeholder state while awaiting first coordinate, plus fallback location if unavailable.
-  - [ ] 2.6 Run ONLY the tests from 2.1.
+- [x] 2.0 Implement camera centering pipeline
+  - [x] 2.1 Write 3-5 focused unit tests for a new `MapStateCoordinator` (or equivalent) validating camera target updates, debounce behavior, and manual vs. automatic recenter rules.
+  - [x] 2.2 Expose location flow from `MainActivity` (or shared ViewModel) so Compose layer observes permission + coordinate updates.
+  - [x] 2.3 Wire `rememberCameraPositionState` to the coordinator, auto-centering on latest location with zoom ≈15 while allowing user gestures without immediate snap-back.
+  - [x] 2.4 Add a floating recenter FAB (48dp min) that re-triggers camera animation to the user’s current position when tapped.
+  - [x] 2.5 Show lightweight progress or placeholder state while awaiting first coordinate, plus fallback location if unavailable.
+  - [x] 2.6 Run ONLY the tests from 2.1.
 
 **Acceptance Criteria:**
 - Camera animates to the user’s location once per update, unless user is actively dragging.

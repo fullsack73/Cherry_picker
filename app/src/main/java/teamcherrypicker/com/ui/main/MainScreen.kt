@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,8 +30,13 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.NightsStay
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -49,8 +56,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.CameraMoveStartedReason
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -61,6 +70,12 @@ import teamcherrypicker.com.Screen
 import teamcherrypicker.com.data.CardBenefit
 import teamcherrypicker.com.data.CardSummary
 import teamcherrypicker.com.data.CardsMeta
+import teamcherrypicker.com.location.LocationPermissionStatus
+import teamcherrypicker.com.location.LocationUiState
+import teamcherrypicker.com.ui.main.map.MapStateCoordinator
+import kotlinx.coroutines.flow.StateFlow
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -68,10 +83,12 @@ fun MainScreen(
     navController: NavController,
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
+    locationUiStateFlow: StateFlow<LocationUiState>,
     cardsViewModel: CardsViewModel = viewModel(factory = CardsViewModel.provideFactory())
 ) {
     val cardsUiState by cardsViewModel.uiState.collectAsState()
     val benefitsState by cardsViewModel.benefitsState.collectAsState()
+    val locationUiState by locationUiStateFlow.collectAsState()
 
     val bottomSheetState = rememberModalBottomSheetState()
     val scaffoldState = rememberBottomSheetScaffoldState(bottomSheetState = bottomSheetState)
@@ -123,6 +140,42 @@ fun MainScreen(
     // Use conditional peek height to hide sheet when no selection
     val effectivePeek = if (selectedMarker != null && (cardsUiState.isLoading || cardsUiState.cards.isNotEmpty())) 280.dp else 0.dp
 
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(LocationUiState.DEFAULT_FALLBACK_LOCATION, 12f)
+    }
+    val coroutineScope = rememberCoroutineScope()
+    val mapStateCoordinator = remember(coroutineScope) {
+        MapStateCoordinator(scope = coroutineScope)
+    }
+    val coordinatorUiState by mapStateCoordinator.uiState.collectAsState()
+
+    LaunchedEffect(locationUiState.permissionStatus) {
+        mapStateCoordinator.onPermissionChanged(locationUiState.permissionStatus == LocationPermissionStatus.Granted)
+    }
+
+    LaunchedEffect(locationUiState.lastKnownLocation) {
+        locationUiState.lastKnownLocation?.let { mapStateCoordinator.onLocationUpdate(it) }
+    }
+
+    LaunchedEffect(mapStateCoordinator) {
+        mapStateCoordinator.cameraUpdates.collect { instruction ->
+            val update = CameraUpdateFactory.newLatLngZoom(instruction.target, instruction.zoom)
+            cameraPositionState.animate(update)
+        }
+    }
+
+    LaunchedEffect(cameraPositionState) {
+        snapshotFlow { cameraPositionState.isMoving to cameraPositionState.cameraMoveStartedReason }
+            .distinctUntilChanged()
+            .collect { (isMoving, reason) ->
+                if (isMoving && reason == CameraMoveStartedReason.GESTURE) {
+                    mapStateCoordinator.onUserGestureStarted()
+                } else if (!isMoving) {
+                    mapStateCoordinator.onCameraIdle()
+                }
+            }
+    }
+
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
         sheetContent = {
@@ -155,9 +208,6 @@ fun MainScreen(
                 .fillMaxSize()
         ) {
             val singapore = LatLng(1.35, 103.87)
-            val cameraPositionState = rememberCameraPositionState {
-                position = CameraPosition.fromLatLngZoom(singapore, 10f)
-            }
             MapSurface(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
@@ -189,6 +239,35 @@ fun MainScreen(
                 )
             }
 
+            LocationStatusOverlay(
+                locationUiState = locationUiState,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(mapContentPadding)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+
+            AnimatedVisibility(
+                visible = coordinatorUiState.showRecenterFab,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = safeDrawingPadding.calculateEndPadding(layoutDirection) + 16.dp,
+                        bottom = safeDrawingPadding.calculateBottomPadding() + 16.dp
+                    )
+            ) {
+                FloatingActionButton(
+                    onClick = { mapStateCoordinator.onRecenterRequest() },
+                    modifier = Modifier.size(56.dp),
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MyLocation,
+                        contentDescription = stringResource(R.string.recenter_fab_content_description)
+                    )
+                }
+            }
+
             FloatingSearchBar(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -208,6 +287,54 @@ fun MainScreen(
             )
 
             // Removed the bottom-right "+" FloatingActionButton per request
+        }
+    }
+}
+
+@Composable
+private fun LocationStatusOverlay(
+    locationUiState: LocationUiState,
+    modifier: Modifier = Modifier
+) {
+    val fallbackCity = stringResource(R.string.location_status_fallback_city)
+    val statusText = when {
+        locationUiState.isLoading -> stringResource(R.string.location_status_loading)
+        !locationUiState.hasLocationFix && locationUiState.permissionStatus == LocationPermissionStatus.Denied ->
+            stringResource(R.string.location_status_permission_denied)
+        !locationUiState.hasLocationFix ->
+            stringResource(R.string.location_status_fallback, fallbackCity)
+        else -> null
+    }
+
+    if (statusText == null) return
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        tonalElevation = 4.dp,
+        shadowElevation = 4.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (locationUiState.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null
+                )
+            }
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
