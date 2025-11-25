@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Cherry_picker</string>
+    <string name="map_content_description">Interactive map showing store locations</string>
 </resources>

@@ -4,40 +4,60 @@ import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import teamcherrypicker.com.Screen
-import androidx.compose.material.icons.filled.NightsStay
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.lifecycle.viewmodel.compose.viewModel
+import teamcherrypicker.com.R
+import teamcherrypicker.com.Screen
 import teamcherrypicker.com.data.CardBenefit
 import teamcherrypicker.com.data.CardSummary
 import teamcherrypicker.com.data.CardsMeta
@@ -47,15 +67,36 @@ import teamcherrypicker.com.data.CardsMeta
 fun MainScreen(
     navController: NavController,
     isDarkMode: Boolean,
-    onToggleDarkMode: () -> Unit
+    onToggleDarkMode: () -> Unit,
+    cardsViewModel: CardsViewModel = viewModel(factory = CardsViewModel.provideFactory())
 ) {
-    val viewModel: CardsViewModel = viewModel(factory = CardsViewModel.provideFactory())
-    val cardsUiState by viewModel.uiState.collectAsState()
-    val benefitsState by viewModel.benefitsState.collectAsState()
+    val cardsUiState by cardsViewModel.uiState.collectAsState()
+    val benefitsState by cardsViewModel.benefitsState.collectAsState()
 
     val bottomSheetState = rememberModalBottomSheetState()
     val scaffoldState = rememberBottomSheetScaffoldState(bottomSheetState = bottomSheetState)
-    val uiSettings by remember { mutableStateOf(MapUiSettings(zoomControlsEnabled = false)) }
+    val mapUiSettings = remember {
+        MapUiSettings(
+            zoomControlsEnabled = false,
+            compassEnabled = true
+        )
+    }
+    val safeDrawingPadding = WindowInsets.safeDrawing.asPaddingValues()
+    val layoutDirection = LocalLayoutDirection.current
+    val density = LocalDensity.current
+    var floatingSearchBarHeightPx by remember { mutableStateOf(0) }
+    val floatingSearchBarHeight = if (floatingSearchBarHeightPx == 0) 0.dp else with(density) {
+        floatingSearchBarHeightPx.toDp()
+    }
+    val mapTopPadding = safeDrawingPadding.calculateTopPadding() +
+        floatingSearchBarHeight + MapSurfaceDefaults.searchBarClearance
+    val mapContentPadding = PaddingValues(
+        start = safeDrawingPadding.calculateStartPadding(layoutDirection),
+        top = mapTopPadding,
+        end = safeDrawingPadding.calculateEndPadding(layoutDirection),
+        bottom = safeDrawingPadding.calculateBottomPadding()
+    )
+    val mapContentDescription = stringResource(R.string.map_content_description)
 
     // Add: simple model for mock store markers and selection state
     data class StoreMarker(val id: String, val position: LatLng, val title: String)
@@ -75,7 +116,7 @@ fun MainScreen(
         } else if (selectedCardId == null || cardsUiState.cards.none { it.id == selectedCardId }) {
             val firstCard = cardsUiState.cards.first()
             selectedCardId = firstCard.id
-            viewModel.selectCard(firstCard.id)
+            cardsViewModel.selectCard(firstCard.id)
         }
     }
 
@@ -93,12 +134,12 @@ fun MainScreen(
                     selectedCardId = selectedCardId,
                     onSelectCard = { card ->
                         selectedCardId = card.id
-                        viewModel.selectCard(card.id)
+                        cardsViewModel.selectCard(card.id)
                     },
                     benefitsState = benefitsState,
                     isLoading = cardsUiState.isLoading,
                     errorMessage = cardsUiState.errorMessage,
-                    onRetry = { viewModel.loadCards() }
+                    onRetry = { cardsViewModel.loadCards() }
                 )
             } else {
                 // Completely empty content when no marker selected
@@ -108,15 +149,21 @@ fun MainScreen(
         sheetPeekHeight = effectivePeek,
         sheetShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize()
+        ) {
             val singapore = LatLng(1.35, 103.87)
             val cameraPositionState = rememberCameraPositionState {
                 position = CameraPosition.fromLatLngZoom(singapore, 10f)
             }
-            GoogleMap(
-                modifier = Modifier.fillMaxSize().testTag("map"),
+            MapSurface(
+                modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
-                uiSettings = uiSettings
+                mapUiSettings = mapUiSettings,
+                contentDescription = mapContentDescription,
+                contentPadding = mapContentPadding
             ) {
                 // Render mock store markers and wire up clicks to set selectedMarker
                 mockStoreMarkers.forEach { store ->
@@ -126,19 +173,16 @@ fun MainScreen(
                         snippet = "Tap for recommendations",
                         onClick = {
                             selectedMarker = store
-                            // Consume the click
                             true
                         }
                     )
                 }
 
-                // Optionally keep one default marker (not selected by default)
                 Marker(
                     state = MarkerState(position = singapore),
                     title = "Singapore",
                     snippet = "Marker in Singapore",
                     onClick = {
-                        // deselect any store and do nothing else
                         selectedMarker = null
                         true
                     }
@@ -146,13 +190,20 @@ fun MainScreen(
             }
 
             FloatingSearchBar(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = safeDrawingPadding.calculateTopPadding())
+                    .zIndex(1f)
+                    .onGloballyPositioned { coordinates ->
+                        floatingSearchBarHeightPx = coordinates.size.height
+                    },
                 onSettingsClick = { /* Logic to open settings */ },
                 navController = navController,
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = onToggleDarkMode,
                 onSearch = { query ->
                     selectedCardId = null
-                    viewModel.loadCards(category = query.takeIf { it.isNotBlank() })
+                    cardsViewModel.loadCards(category = query.takeIf { it.isNotBlank() })
                 }
             )
 
@@ -179,6 +230,7 @@ fun FloatingSearchBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp)
+            .testTag("floatingSearchBar")
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp),

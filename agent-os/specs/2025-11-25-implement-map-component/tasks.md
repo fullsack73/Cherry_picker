@@ -12,12 +12,12 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** android-engineer  
 **Dependencies:** None
 
-- [ ] 1.0 Prepare project for Google Maps SDK
-  - [ ] 1.1 Write 2-4 smoke tests (Compose screenshot or UI tests) ensuring the map container renders with the floating search bar still visible.
-  - [ ] 1.2 Add/verify Maps Compose and Play Services dependencies plus manifest placeholders for the API key (secure via `local.properties`).
-  - [ ] 1.3 Update `MainScreen` to use a dedicated `MapSurface` composable occupying space below `FloatingSearchBar`, ensuring padding respects safe areas.
-  - [ ] 1.4 Configure baseline `GoogleMap` component with `MapUiSettings` (disable zoom buttons, enable compass, set content description) and placeholder camera state.
-  - [ ] 1.5 Run ONLY the tests from 1.1 to confirm layout integrity.
+- [x] 1.0 Prepare project for Google Maps SDK
+  - [x] 1.1 Write 2-4 smoke tests (Compose screenshot or UI tests) ensuring the map container renders with the floating search bar still visible.
+  - [x] 1.2 Add/verify Maps Compose and Play Services dependencies plus manifest placeholders for the API key (secure via `local.properties`).
+  - [x] 1.3 Update `MainScreen` to use a dedicated `MapSurface` composable occupying space below `FloatingSearchBar`, ensuring padding respects safe areas.
+  - [x] 1.4 Configure baseline `GoogleMap` component with `MapUiSettings` (disable zoom buttons, enable compass, set content description) and placeholder camera state.
+  - [x] 1.5 Run ONLY the tests from 1.1 to confirm layout integrity.
 
 **Acceptance Criteria:**
 - Map renders without crashing even before location data loads.

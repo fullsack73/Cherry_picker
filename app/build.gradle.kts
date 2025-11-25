@@ -1,8 +1,13 @@
+import com.android.build.gradle.internal.cxx.configure.gradleLocalProperties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
+
+val mapsApiKey: String = gradleLocalProperties(rootDir, providers)
+    .getProperty("GOOGLE_MAPS_API_KEY", "")
 
 android {
     namespace = "teamcherrypicker.com"
@@ -16,6 +21,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders += mapOf(
+            "GOOGLE_MAPS_API_KEY" to mapsApiKey
+        )
     }
 
     buildTypes {
@@ -39,6 +48,7 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -69,13 +79,20 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.junit)
+    testImplementation("androidx.navigation:navigation-testing:2.7.5")
+    testImplementation("androidx.test:core:1.5.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation("com.google.android.gms:play-services-location:21.2.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("com.google.maps.android:maps-compose:4.3.3")
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
     implementation("androidx.compose.material3:material3-window-size-class:1.1.2")
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation("androidx.navigation:navigation-testing:2.7.5")
     
 }
