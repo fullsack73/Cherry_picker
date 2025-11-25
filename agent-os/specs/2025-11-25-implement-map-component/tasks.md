@@ -68,11 +68,11 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** testing-engineer  
 **Dependencies:** Task Groups 1-3
 
-- [ ] 4.0 Validate end-to-end flows
-  - [ ] 4.1 Review tests from Task Groups 1-3 (approx. 7-13 tests total) and note gaps.
-  - [ ] 4.2 Design up to 6 additional strategic tests covering: permission toggling flow, recenter FAB interaction, fallback viewport behavior, and map rendering stability.
-  - [ ] 4.3 Implement the additional tests (UI or integration) plus any fixtures needed; stay within the 10-test cap.
-  - [ ] 4.4 Run ONLY the combined feature-specific tests (Groups 1-3 + new ones) and document results.
+- [x] 4.0 Validate end-to-end flows
+  - [x] 4.1 Review tests from Task Groups 1-3 (approx. 7-13 tests total) and note gaps.
+  - [x] 4.2 Design up to 6 additional strategic tests covering: permission toggling flow, recenter FAB interaction, fallback viewport behavior, and map rendering stability.
+  - [x] 4.3 Implement the additional tests (UI or integration) plus any fixtures needed; stay within the 10-test cap.
+  - [x] 4.4 Run ONLY the combined feature-specific tests (Groups 1-3 + new ones) and document results.
 
 **Acceptance Criteria:**
 - All feature-specific tests pass.
