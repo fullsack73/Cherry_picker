@@ -49,12 +49,12 @@ Assigned roles: android-engineer, testing-engineer
 **Assigned implementer:** android-engineer  
 **Dependencies:** Task Group 2
 
-- [ ] 3.0 Handle permission denial & overlays
-  - [ ] 3.1 Write 2-4 UI tests validating that permission-denied banners or modals render and guide users to settings, and that fallback viewport shows.
-  - [ ] 3.2 Create `LocationPermissionBanner` composable (or similar) referencing global accessibility standards (48dp targets, clear copy).
-  - [ ] 3.3 Ensure map remains interactive around fallback coordinates even without permission; disable recenter FAB in this state.
-  - [ ] 3.4 Provide user feedback (snackbar/toast) for location failures using global error-handling conventions.
-  - [ ] 3.5 Run ONLY the tests from 3.1.
+- [x] 3.0 Handle permission denial & overlays
+  - [x] 3.1 Write 2-4 UI tests validating that permission-denied banners or modals render and guide users to settings, and that fallback viewport shows.
+  - [x] 3.2 Create `LocationPermissionBanner` composable (or similar) referencing global accessibility standards (48dp targets, clear copy).
+  - [x] 3.3 Ensure map remains interactive around fallback coordinates even without permission; disable recenter FAB in this state.
+  - [x] 3.4 Provide user feedback (snackbar/toast) for location failures using global error-handling conventions.
+  - [x] 3.5 Run ONLY the tests from 3.1.
 
 **Acceptance Criteria:**
 - Denied-permission state clearly communicates next steps and prevents broken UI.

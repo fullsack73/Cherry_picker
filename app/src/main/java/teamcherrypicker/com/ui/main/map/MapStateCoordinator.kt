@@ -20,7 +20,8 @@ class MapStateCoordinator(
 
     data class UiState(
         val showRecenterFab: Boolean = false,
-        val lastLocation: LatLng? = null
+        val lastLocation: LatLng? = null,
+        val isPermissionDenied: Boolean = false
     )
 
     data class CameraUpdateInstruction(
@@ -105,7 +106,8 @@ class MapStateCoordinator(
         val shouldShowRecenter = permissionGranted && manualOverride && lastLocation != null
         _uiState.value = UiState(
             showRecenterFab = shouldShowRecenter,
-            lastLocation = lastLocation
+            lastLocation = lastLocation,
+            isPermissionDenied = !permissionGranted
         )
     }
 

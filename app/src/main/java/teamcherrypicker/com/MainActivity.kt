@@ -145,9 +145,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                .addOnFailureListener {
+                .addOnFailureListener { e ->
                     locationUiState.update { current ->
-                        current.copy(isLoading = false)
+                        current.copy(
+                            isLoading = false,
+                            errorMessage = e.localizedMessage ?: "Failed to get location"
+                        )
                     }
                 }
         }

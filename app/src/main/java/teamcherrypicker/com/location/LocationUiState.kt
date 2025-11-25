@@ -13,7 +13,8 @@ data class LocationUiState(
     val isLoading: Boolean = false,
     val lastKnownLocation: LatLng? = null,
     val fallbackLocation: LatLng = DEFAULT_FALLBACK_LOCATION,
-    val lastUpdatedMillis: Long? = null
+    val lastUpdatedMillis: Long? = null,
+    val errorMessage: String? = null
 ) {
     val hasLocationFix: Boolean get() = lastKnownLocation != null
     val resolvedLocation: LatLng get() = lastKnownLocation ?: fallbackLocation

@@ -1,5 +1,8 @@
 package teamcherrypicker.com.ui.main
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -46,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
@@ -92,6 +96,9 @@ fun MainScreen(
 
     val bottomSheetState = rememberModalBottomSheetState()
     val scaffoldState = rememberBottomSheetScaffoldState(bottomSheetState = bottomSheetState)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
     val mapUiSettings = remember {
         MapUiSettings(
             zoomControlsEnabled = false,
@@ -176,8 +183,15 @@ fun MainScreen(
             }
     }
 
+    LaunchedEffect(locationUiState.errorMessage) {
+        locationUiState.errorMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         sheetContent = {
             if (selectedMarker != null) {
                 RecommendationSheetContent(
@@ -239,13 +253,28 @@ fun MainScreen(
                 )
             }
 
-            LocationStatusOverlay(
-                locationUiState = locationUiState,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(mapContentPadding)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            )
+            if (coordinatorUiState.isPermissionDenied) {
+                LocationPermissionBanner(
+                    onOpenSettings = {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", context.packageName, null)
+                        }
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(mapContentPadding)
+                        .padding(bottom = 16.dp)
+                )
+            } else {
+                LocationStatusOverlay(
+                    locationUiState = locationUiState,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(mapContentPadding)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+            }
 
             AnimatedVisibility(
                 visible = coordinatorUiState.showRecenterFab,
