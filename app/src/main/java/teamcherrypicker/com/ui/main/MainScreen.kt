@@ -408,7 +408,7 @@ fun CardSummaryItem(card: CardSummary, isSelected: Boolean, onClick: () -> Unit)
                 Spacer(modifier = Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     card.normalizedCategories.forEach { category ->
-                        AssistChip(onClick = { onClick() }, label = { Text(category) })
+                        AssistChip(onClick = { onClick() }, label = { Text(category.toCategoryLabel()) })
                     }
                 }
             }
@@ -427,7 +427,7 @@ fun BenefitsList(benefits: List<CardBenefit>) {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = benefit.normalizedCategory,
+                    text = benefit.normalizedCategory.toCategoryLabel(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

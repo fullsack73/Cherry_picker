@@ -120,15 +120,6 @@ fun ManageCardsScreen(navController: NavController) {
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            uiState.meta?.let { meta ->
-                Text(
-                    text = "Last refreshed: ${meta.lastRefreshedAt ?: "Unknown"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-
             uiState.errorMessage?.let { message ->
                 Text(
                     text = message,
@@ -164,7 +155,7 @@ fun ManageCardsScreen(navController: NavController) {
                         onClick = {
                             selectedCategory = if (selectedCategory == category) null else category
                         },
-                        label = { Text(category) }
+                        label = { Text(category.toCategoryLabel()) }
                     )
                 }
             }
@@ -224,7 +215,7 @@ fun ManageCardListItem(card: CardSummary, buttonText: String, onClick: () -> Uni
                     Spacer(modifier = Modifier.height(6.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         card.normalizedCategories.forEach { category ->
-                            AssistChip(onClick = {}, label = { Text(category) })
+                            AssistChip(onClick = {}, label = { Text(category.toCategoryLabel()) })
                         }
                     }
                 }
