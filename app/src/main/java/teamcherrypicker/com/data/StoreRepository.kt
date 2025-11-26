@@ -1,5 +1,6 @@
 package teamcherrypicker.com.data
 
+import android.util.Log
 import teamcherrypicker.com.api.ApiClient
 import teamcherrypicker.com.api.ApiService
 
@@ -20,8 +21,8 @@ class StoreRepository(private val apiService: ApiService = ApiClient.apiService)
             categories = categoriesParam
         )
 
-        return response.data.mapNotNull { dto ->
-            if (dto.latitude == null || dto.longitude == null) return@mapNotNull null
+        val stores = response.data.mapNotNull { dto ->
+            if (dto.latitude == null || dto.longitude == null || dto.latitude.isNaN() || dto.longitude.isNaN()) return@mapNotNull null
             
             Store(
                 id = dto.id,
@@ -34,6 +35,20 @@ class StoreRepository(private val apiService: ApiService = ApiClient.apiService)
                 normalizedCategory = dto.normalizedCategory ?: "UNKNOWN",
                 distance = dto.distance
             )
+        }.distinctBy { it.id }
+
+        Log.d(
+            "StoreRepository",
+            "Fetched ${stores.size} stores for lat=$latitude lon=$longitude radius=${radius ?: "default"} categories=${categoriesParam ?: "all"}"
+        )
+
+        stores.take(5).forEachIndexed { index, store ->
+            Log.d(
+                "StoreRepository",
+                "Store[$index]=${store.id}:${store.name}@${store.latitude},${store.longitude} category=${store.normalizedCategory}"
+            )
         }
+
+        return stores
     }
 }

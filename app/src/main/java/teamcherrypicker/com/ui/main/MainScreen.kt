@@ -179,6 +179,10 @@ fun MainScreen(
     LaunchedEffect(locationUiState.lastKnownLocation) {
         if (lastSearchedLocation == null && locationUiState.lastKnownLocation != null) {
             val loc = locationUiState.lastKnownLocation!!
+            Log.d(
+                "MapDebug",
+                "Initial load lat=${loc.latitude} lon=${loc.longitude}"
+            )
             cardsViewModel.loadStores(loc.latitude, loc.longitude)
             lastSearchedLocation = loc
         }
@@ -266,6 +270,17 @@ fun MainScreen(
                     storesUiState.stores.map { StoreClusterItem(it) }
                 }
 
+                LaunchedEffect(clusterItems) {
+                    val sample = if (clusterItems.isEmpty()) {
+                        "none"
+                    } else {
+                        clusterItems.take(5).joinToString { item ->
+                            "${item.store.id}:${item.store.name}@${item.store.latitude},${item.store.longitude}"
+                        }
+                    }
+                    Log.d("MapDebug", "Cluster update count=${clusterItems.size} sample=$sample")
+                }
+
                 // Cache BitmapDescriptors to avoid recreating them on every render
                 val cafeIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW) }
                 val diningIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE) }
@@ -275,6 +290,7 @@ fun MainScreen(
                 Clustering(
                     items = clusterItems,
                     onClusterItemClick = { item ->
+                        Log.d("MapDebug", "Cluster marker tapped id=${item.store.id} name=${item.store.name}")
                         selectedStore = item.store
                         true
                     },
@@ -286,7 +302,7 @@ fun MainScreen(
                             else -> defaultIcon
                         }
                         Marker(
-                            state = rememberMarkerState(key = item.store.id.toString(), position = item.getPosition()),
+                            state = rememberMarkerState(position = item.getPosition()),
                             title = item.getTitle(),
                             snippet = item.getSnippet(),
                             icon = icon,
@@ -316,6 +332,10 @@ fun MainScreen(
                             else selectedCategories.add(category)
 
                             val target = cameraPositionState.position.target
+                            Log.d(
+                                "MapDebug",
+                                "Category toggled=$category selected=${selectedCategories.joinToString()} lat=${target.latitude} lon=${target.longitude}"
+                            )
                             cardsViewModel.loadStores(
                                 target.latitude,
                                 target.longitude,
@@ -340,6 +360,10 @@ fun MainScreen(
                 Button(
                     onClick = {
                         val target = cameraPositionState.position.target
+                        Log.d(
+                            "MapDebug",
+                            "Search Here triggered lat=${target.latitude} lon=${target.longitude} categories=${selectedCategories.joinToString()}"
+                        )
                         cardsViewModel.loadStores(
                             target.latitude,
                             target.longitude,

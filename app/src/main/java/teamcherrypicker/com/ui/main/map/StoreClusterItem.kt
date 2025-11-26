@@ -19,4 +19,14 @@ data class StoreClusterItem(
     override fun getSnippet(): String = snippet
 
     override fun getZIndex(): Float? = null
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is StoreClusterItem) return false
+        return store.id == other.store.id
+    }
+
+    override fun hashCode(): Int {
+        return store.id
+    }
 }
