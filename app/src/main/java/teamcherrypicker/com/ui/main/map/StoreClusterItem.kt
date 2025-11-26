@@ -4,15 +4,19 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.clustering.ClusterItem
 import teamcherrypicker.com.data.Store
 
-class StoreClusterItem(
+data class StoreClusterItem(
     val store: Store
 ) : ClusterItem {
 
-    override fun getPosition(): LatLng = LatLng(store.latitude, store.longitude)
+    private val position = LatLng(store.latitude, store.longitude)
+    private val title = store.name
+    private val snippet = store.normalizedCategory
 
-    override fun getTitle(): String = store.name
+    override fun getPosition(): LatLng = position
 
-    override fun getSnippet(): String = store.normalizedCategory
+    override fun getTitle(): String = title
+
+    override fun getSnippet(): String = snippet
 
     override fun getZIndex(): Float? = null
 }

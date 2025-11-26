@@ -20,16 +20,18 @@ class StoreRepository(private val apiService: ApiService = ApiClient.apiService)
             categories = categoriesParam
         )
 
-        return response.data.map { dto ->
+        return response.data.mapNotNull { dto ->
+            if (dto.latitude == null || dto.longitude == null) return@mapNotNull null
+            
             Store(
                 id = dto.id,
-                name = dto.name,
+                name = dto.name ?: "Unknown Store",
                 branch = dto.branch,
                 address = dto.address,
                 latitude = dto.latitude,
                 longitude = dto.longitude,
-                sourceCategory = dto.sourceCategory,
-                normalizedCategory = dto.normalizedCategory,
+                sourceCategory = dto.sourceCategory ?: "UNKNOWN",
+                normalizedCategory = dto.normalizedCategory ?: "UNKNOWN",
                 distance = dto.distance
             )
         }

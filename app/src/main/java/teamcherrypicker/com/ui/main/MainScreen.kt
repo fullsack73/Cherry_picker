@@ -68,12 +68,14 @@ import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.rememberMarkerState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import teamcherrypicker.com.R
 import teamcherrypicker.com.Screen
 import teamcherrypicker.com.data.CardBenefit
 import teamcherrypicker.com.data.CardSummary
 import teamcherrypicker.com.data.CardsMeta
+import teamcherrypicker.com.data.Store
 import teamcherrypicker.com.location.LocationPermissionStatus
 import teamcherrypicker.com.location.LocationUiState
 import teamcherrypicker.com.ui.main.map.MapStateCoordinator
@@ -134,7 +136,7 @@ fun MainScreen(
     var lastSearchedLocation by remember { mutableStateOf<LatLng?>(null) }
     var showSearchHereButton by remember { mutableStateOf(false) }
 
-    var selectedStore by remember { mutableStateOf<teamcherrypicker.com.data.Store?>(null) }
+    var selectedStore by remember { mutableStateOf<Store?>(null) }
     var selectedCardId by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(cardsUiState.cards) {
@@ -155,7 +157,7 @@ fun MainScreen(
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LocationUiState.DEFAULT_FALLBACK_LOCATION, 12f)
     }
-    
+
     // Update showSearchHereButton when camera moves
     LaunchedEffect(cameraPositionState.position.target) {
         lastSearchedLocation?.let { last ->
@@ -264,6 +266,12 @@ fun MainScreen(
                     storesUiState.stores.map { StoreClusterItem(it) }
                 }
 
+                // Cache BitmapDescriptors to avoid recreating them on every render
+                val cafeIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW) }
+                val diningIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE) }
+                val shoppingIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET) }
+                val defaultIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE) }
+
                 Clustering(
                     items = clusterItems,
                     onClusterItemClick = { item ->
@@ -271,17 +279,17 @@ fun MainScreen(
                         true
                     },
                     clusterItemContent = { item ->
-                        val hue = when (item.store.normalizedCategory) {
-                            "CAFE" -> BitmapDescriptorFactory.HUE_YELLOW
-                            "DINING" -> BitmapDescriptorFactory.HUE_ORANGE
-                            "SHOPPING" -> BitmapDescriptorFactory.HUE_VIOLET
-                            else -> BitmapDescriptorFactory.HUE_AZURE
+                        val icon = when (item.store.normalizedCategory) {
+                            "CAFE" -> cafeIcon
+                            "DINING" -> diningIcon
+                            "SHOPPING" -> shoppingIcon
+                            else -> defaultIcon
                         }
                         Marker(
-                            state = MarkerState(position = item.position),
-                            title = item.title,
-                            snippet = item.snippet,
-                            icon = BitmapDescriptorFactory.defaultMarker(hue),
+                            state = rememberMarkerState(key = item.store.id.toString(), position = item.getPosition()),
+                            title = item.getTitle(),
+                            snippet = item.getSnippet(),
+                            icon = icon,
                             onClick = {
                                 selectedStore = item.store
                                 true
