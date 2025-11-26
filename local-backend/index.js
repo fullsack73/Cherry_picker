@@ -10,6 +10,7 @@ const {
   fetchCardBenefits,
   fetchLatestRefreshMetadata,
 } = require('./src/queries/cards');
+const { fetchNearbyStores } = require('./src/queries/stores');
 
 const app = express();
 const port = 3000;
@@ -137,6 +138,48 @@ app.get('/api/cards/:cardId/benefits', (req, res) => {
   const benefits = fetchCardBenefits(db, cardId);
 
   return res.json({ data: benefits });
+});
+
+app.get('/api/stores/nearby', (req, res) => {
+  const { latitude, longitude, radius, categories } = req.query;
+
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+
+  if (isNaN(lat) || isNaN(lon)) {
+    return sendError(res, 400, 'INVALID_LOCATION', 'Latitude and longitude are required and must be numbers');
+  }
+
+  let parsedRadius = 500;
+  if (radius !== undefined) {
+    const r = Number(radius);
+    if (!isNaN(r) && r > 0) {
+      parsedRadius = r;
+    }
+  }
+
+  let parsedCategories = [];
+  if (categories) {
+    if (typeof categories === 'string') {
+      parsedCategories = categories.split(',').map(c => c.trim()).filter(c => c.length > 0);
+    } else if (Array.isArray(categories)) {
+      parsedCategories = categories;
+    }
+  }
+
+  try {
+    const stores = fetchNearbyStores(db, {
+      latitude: lat,
+      longitude: lon,
+      radius: parsedRadius,
+      categories: parsedCategories
+    });
+
+    res.json({ data: stores });
+  } catch (error) {
+    console.error('Error fetching nearby stores:', error);
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to fetch nearby stores');
+  }
 });
 
 if (process.env.NODE_ENV !== 'test') {

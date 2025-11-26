@@ -23,4 +23,12 @@ interface ApiService {
     suspend fun getCardBenefits(
         @Path("cardId") cardId: Int
     ): CardBenefitsResponse
+
+    @GET("/api/stores/nearby")
+    suspend fun getNearbyStores(
+        @Query("latitude") latitude: Double,
+        @Query("longitude") longitude: Double,
+        @Query("radius") radius: Int? = null,
+        @Query("categories") categories: String? = null
+    ): StoresResponse
 }

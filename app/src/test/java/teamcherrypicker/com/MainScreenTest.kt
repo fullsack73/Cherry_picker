@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.testing.TestNavHostController
@@ -27,6 +28,8 @@ import teamcherrypicker.com.api.CardBenefitsResponse
 import teamcherrypicker.com.api.CardDto
 import teamcherrypicker.com.api.CardsMetaDto
 import teamcherrypicker.com.api.CardsResponse
+import teamcherrypicker.com.api.StoreDto
+import teamcherrypicker.com.api.StoresResponse
 import teamcherrypicker.com.data.CardsRepository
 import teamcherrypicker.com.data.UserLocation
 import teamcherrypicker.com.location.LocationPermissionStatus
@@ -37,6 +40,8 @@ import teamcherrypicker.com.ui.main.MapSurfaceRenderer
 import teamcherrypicker.com.ui.main.MainScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.robolectric.annotation.Config
+
+import teamcherrypicker.com.data.StoreRepository
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -72,7 +77,32 @@ class MainScreenTest {
             .assertIsDisplayed()
     }
 
-    private fun setMainScreenContent() {
+    @Test
+    fun filterChips_areDisplayed() {
+        setMainScreenContent()
+        composeTestRule.onNodeWithText("DINING").assertIsDisplayed()
+        composeTestRule.onNodeWithText("CAFE").assertIsDisplayed()
+    }
+
+    @Test
+    fun filterChips_toggleSelection() {
+        val recordingApiService = RecordingApiService()
+        setMainScreenContent(apiService = recordingApiService)
+
+        // Click DINING chip
+        composeTestRule.onNodeWithText("DINING").performClick()
+
+        // Verify API was called with DINING category
+        // Note: Initial load might have called it with null/empty.
+        // We check the last call.
+        // Since calls are async, we might need to wait or check the recording.
+        // For Robolectric/Compose tests, we might need to advance time or wait until idle.
+        composeTestRule.waitForIdle()
+        
+        assert(recordingApiService.lastCategories?.contains("DINING") == true)
+    }
+
+    private fun setMainScreenContent(apiService: ApiService? = null) {
         composeTestRule.setContent {
             val context = LocalContext.current
             val navController = remember {
@@ -80,7 +110,13 @@ class MainScreenTest {
                     navigatorProvider.addNavigator(ComposeNavigator())
                 }
             }
-            val cardsViewModel = remember { createTestCardsViewModel() }
+            val cardsViewModel = remember { 
+                if (apiService != null) {
+                    CardsViewModel(CardsRepository(apiService), StoreRepository(apiService))
+                } else {
+                    createTestCardsViewModel() 
+                }
+            }
             val locationFlow = remember {
                 MutableStateFlow(
                     LocationUiState(
@@ -99,6 +135,32 @@ class MainScreenTest {
                     cardsViewModel = cardsViewModel
                 )
             }
+        }
+    }
+
+    class RecordingApiService : ApiService {
+        var lastCategories: String? = null
+
+        override suspend fun sendLocation(location: UserLocation): Response<Unit> = Response.success(Unit)
+
+        override suspend fun getCards(limit: Int?, offset: Int?, category: String?): CardsResponse {
+            return CardsResponse(data = emptyList(), meta = CardsMetaDto(0, 0, 0, "", ""))
+        }
+
+        override suspend fun getCardBenefits(cardId: Int): CardBenefitsResponse {
+            return CardBenefitsResponse(data = emptyList())
+        }
+
+        override suspend fun getNearbyStores(
+            latitude: Double,
+            longitude: Double,
+            radius: Int?,
+            categories: String?
+        ): StoresResponse {
+            lastCategories = categories
+            return StoresResponse(data = listOf(
+                StoreDto(1, "Test Store", null, null, 1.35, 103.87, "Food", "DINING", 10.0)
+            ))
         }
     }
 
@@ -123,9 +185,20 @@ class MainScreenTest {
                 )
                 return CardBenefitsResponse(data = listOf(benefit))
             }
+
+            override suspend fun getNearbyStores(
+                latitude: Double,
+                longitude: Double,
+                radius: Int?,
+                categories: String?
+            ): StoresResponse {
+                return StoresResponse(data = listOf(
+                    StoreDto(1, "Test Store", null, null, 1.35, 103.87, "Food", "DINING", 10.0)
+                ))
+            }
         }
 
-        return CardsViewModel(CardsRepository(fakeApiService))
+        return CardsViewModel(CardsRepository(fakeApiService), StoreRepository(fakeApiService))
     }
 
     private val fakeMapRenderer: MapSurfaceRenderer =

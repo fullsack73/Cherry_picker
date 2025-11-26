@@ -14,6 +14,8 @@ import teamcherrypicker.com.data.CardSummary
 import teamcherrypicker.com.data.CardsMeta
 import teamcherrypicker.com.data.CardsPage
 import teamcherrypicker.com.data.CardsRepository
+import teamcherrypicker.com.data.Store
+import teamcherrypicker.com.data.StoreRepository
 
 data class CardsUiState(
     val isLoading: Boolean = true,
@@ -29,7 +31,16 @@ data class BenefitsUiState(
     val errorMessage: String? = null
 )
 
-class CardsViewModel(private val repository: CardsRepository) : ViewModel() {
+data class StoresUiState(
+    val isLoading: Boolean = false,
+    val stores: List<Store> = emptyList(),
+    val errorMessage: String? = null
+)
+
+class CardsViewModel(
+    private val repository: CardsRepository,
+    private val storeRepository: StoreRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CardsUiState())
     val uiState: StateFlow<CardsUiState> = _uiState.asStateFlow()
@@ -37,10 +48,30 @@ class CardsViewModel(private val repository: CardsRepository) : ViewModel() {
     private val _benefitsState = MutableStateFlow(BenefitsUiState())
     val benefitsState: StateFlow<BenefitsUiState> = _benefitsState.asStateFlow()
 
+    private val _storesUiState = MutableStateFlow(StoresUiState())
+    val storesUiState: StateFlow<StoresUiState> = _storesUiState.asStateFlow()
+
     private val benefitsCache = ConcurrentHashMap<Int, List<CardBenefit>>()
 
     init {
         loadCards()
+    }
+
+    fun loadStores(latitude: Double, longitude: Double, radius: Int = 500, categories: List<String>? = null) {
+        viewModelScope.launch {
+            _storesUiState.update { it.copy(isLoading = true, errorMessage = null) }
+            try {
+                val stores = storeRepository.fetchNearbyStores(latitude, longitude, radius, categories)
+                _storesUiState.update { it.copy(isLoading = false, stores = stores) }
+            } catch (throwable: Throwable) {
+                _storesUiState.update { current ->
+                    current.copy(
+                        isLoading = false,
+                        errorMessage = throwable.message ?: "Unable to load stores"
+                    )
+                }
+            }
+        }
     }
 
     fun loadCards(category: String? = null, limit: Int = 25, offset: Int = 0) {
@@ -90,12 +121,15 @@ class CardsViewModel(private val repository: CardsRepository) : ViewModel() {
     }
 
     companion object {
-        fun provideFactory(repository: CardsRepository = CardsRepository()): ViewModelProvider.Factory {
+        fun provideFactory(
+            repository: CardsRepository = CardsRepository(),
+            storeRepository: StoreRepository = StoreRepository()
+        ): ViewModelProvider.Factory {
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(CardsViewModel::class.java)) {
-                        return CardsViewModel(repository) as T
+                        return CardsViewModel(repository, storeRepository) as T
                     }
                     throw IllegalArgumentException("Unknown ViewModel class: ${'$'}modelClass")
                 }

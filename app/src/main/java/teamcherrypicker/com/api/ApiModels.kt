@@ -34,3 +34,19 @@ data class CardBenefitDto(
     @SerializedName("source_category") val sourceCategory: String,
     @SerializedName("normalized_category") val normalizedCategory: String
 )
+
+data class StoresResponse(
+    @SerializedName("data") val data: List<StoreDto>
+)
+
+data class StoreDto(
+    @SerializedName("id") val id: Int,
+    @SerializedName("name") val name: String,
+    @SerializedName("branch") val branch: String?,
+    @SerializedName("address") val address: String?,
+    @SerializedName("latitude") val latitude: Double,
+    @SerializedName("longitude") val longitude: Double,
+    @SerializedName("source_category") val sourceCategory: String,
+    @SerializedName("normalized_category") val normalizedCategory: String,
+    @SerializedName("distance") val distance: Double
+)

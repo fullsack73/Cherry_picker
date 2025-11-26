@@ -80,6 +80,9 @@ import teamcherrypicker.com.ui.main.map.MapStateCoordinator
 import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import com.google.maps.android.compose.clustering.Clustering
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import teamcherrypicker.com.ui.main.map.StoreClusterItem
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -92,6 +95,7 @@ fun MainScreen(
 ) {
     val cardsUiState by cardsViewModel.uiState.collectAsState()
     val benefitsState by cardsViewModel.benefitsState.collectAsState()
+    val storesUiState by cardsViewModel.storesUiState.collectAsState()
     val locationUiState by locationUiStateFlow.collectAsState()
 
     val bottomSheetState = rememberModalBottomSheetState()
@@ -122,34 +126,62 @@ fun MainScreen(
     )
     val mapContentDescription = stringResource(R.string.map_content_description)
 
-    // Add: simple model for mock store markers and selection state
-    data class StoreMarker(val id: String, val position: LatLng, val title: String)
+    // Filter State
+    val categories = listOf("DINING", "CAFE", "SHOPPING")
+    val selectedCategories = remember { mutableStateListOf<String>() }
 
-    val mockStoreMarkers = listOf(
-        StoreMarker("s1", LatLng(1.3521, 103.8198), "Orchard Road - Mock Store"),
-        StoreMarker("s2", LatLng(1.2833, 103.8600), "Marina Bay - Mock Store"),
-        StoreMarker("s3", LatLng(1.3000, 103.8000), "Bugis - Mock Store")
-    )
+    // Search Here State
+    var lastSearchedLocation by remember { mutableStateOf<LatLng?>(null) }
+    var showSearchHereButton by remember { mutableStateOf(false) }
 
-    var selectedMarker by remember { mutableStateOf<StoreMarker?>(null) }
+    var selectedStore by remember { mutableStateOf<teamcherrypicker.com.data.Store?>(null) }
     var selectedCardId by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(cardsUiState.cards) {
         if (cardsUiState.cards.isEmpty()) {
             selectedCardId = null
         } else if (selectedCardId == null || cardsUiState.cards.none { it.id == selectedCardId }) {
-            val firstCard = cardsUiState.cards.first()
-            selectedCardId = firstCard.id
-            cardsViewModel.selectCard(firstCard.id)
+            val firstCard = cardsUiState.cards.firstOrNull()
+            if (firstCard != null) {
+                selectedCardId = firstCard.id
+                cardsViewModel.selectCard(firstCard.id)
+            }
         }
     }
 
     // Use conditional peek height to hide sheet when no selection
-    val effectivePeek = if (selectedMarker != null && (cardsUiState.isLoading || cardsUiState.cards.isNotEmpty())) 280.dp else 0.dp
+    val effectivePeek = if (selectedStore != null && (cardsUiState.isLoading || cardsUiState.cards.isNotEmpty())) 280.dp else 0.dp
 
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LocationUiState.DEFAULT_FALLBACK_LOCATION, 12f)
     }
+    
+    // Update showSearchHereButton when camera moves
+    LaunchedEffect(cameraPositionState.position.target) {
+        lastSearchedLocation?.let { last ->
+            val dist = FloatArray(1)
+            android.location.Location.distanceBetween(
+                last.latitude, last.longitude,
+                cameraPositionState.position.target.latitude, cameraPositionState.position.target.longitude,
+                dist
+            )
+            if (dist[0] > 500) { // Show if moved > 500m
+                showSearchHereButton = true
+            } else {
+                showSearchHereButton = false
+            }
+        }
+    }
+
+    // Initial Search
+    LaunchedEffect(locationUiState.lastKnownLocation) {
+        if (lastSearchedLocation == null && locationUiState.lastKnownLocation != null) {
+            val loc = locationUiState.lastKnownLocation!!
+            cardsViewModel.loadStores(loc.latitude, loc.longitude)
+            lastSearchedLocation = loc
+        }
+    }
+
     val coroutineScope = rememberCoroutineScope()
     val mapStateCoordinator = remember(coroutineScope) {
         MapStateCoordinator(scope = coroutineScope)
@@ -193,11 +225,11 @@ fun MainScreen(
         scaffoldState = scaffoldState,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         sheetContent = {
-            if (selectedMarker != null) {
+            if (selectedStore != null) {
                 RecommendationSheetContent(
                     cards = cardsUiState.cards,
                     meta = cardsUiState.meta,
-                    selectedTitle = selectedMarker!!.title,
+                    selectedTitle = selectedStore!!.name,
                     selectedCardId = selectedCardId,
                     onSelectCard = { card ->
                         selectedCardId = card.id
@@ -221,7 +253,6 @@ fun MainScreen(
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            val singapore = LatLng(1.35, 103.87)
             MapSurface(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
@@ -229,28 +260,93 @@ fun MainScreen(
                 contentDescription = mapContentDescription,
                 contentPadding = mapContentPadding
             ) {
-                // Render mock store markers and wire up clicks to set selectedMarker
-                mockStoreMarkers.forEach { store ->
-                    Marker(
-                        state = MarkerState(position = store.position),
-                        title = store.title,
-                        snippet = "Tap for recommendations",
-                        onClick = {
-                            selectedMarker = store
-                            true
-                        }
-                    )
+                val clusterItems = remember(storesUiState.stores) {
+                    storesUiState.stores.map { StoreClusterItem(it) }
                 }
 
-                Marker(
-                    state = MarkerState(position = singapore),
-                    title = "Singapore",
-                    snippet = "Marker in Singapore",
-                    onClick = {
-                        selectedMarker = null
+                Clustering(
+                    items = clusterItems,
+                    onClusterItemClick = { item ->
+                        selectedStore = item.store
                         true
+                    },
+                    clusterItemContent = { item ->
+                        val hue = when (item.store.normalizedCategory) {
+                            "CAFE" -> BitmapDescriptorFactory.HUE_YELLOW
+                            "DINING" -> BitmapDescriptorFactory.HUE_ORANGE
+                            "SHOPPING" -> BitmapDescriptorFactory.HUE_VIOLET
+                            else -> BitmapDescriptorFactory.HUE_AZURE
+                        }
+                        Marker(
+                            state = MarkerState(position = item.position),
+                            title = item.title,
+                            snippet = item.snippet,
+                            icon = BitmapDescriptorFactory.defaultMarker(hue),
+                            onClick = {
+                                selectedStore = item.store
+                                true
+                            }
+                        )
                     }
                 )
+            }
+
+            // Filter Chips
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = mapTopPadding + 8.dp, end = 16.dp)
+                    .zIndex(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                categories.forEach { category ->
+                    val isSelected = selectedCategories.contains(category)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            if (isSelected) selectedCategories.remove(category)
+                            else selectedCategories.add(category)
+
+                            val target = cameraPositionState.position.target
+                            cardsViewModel.loadStores(
+                                target.latitude,
+                                target.longitude,
+                                categories = selectedCategories.toList().takeIf { it.isNotEmpty() }
+                            )
+                            lastSearchedLocation = target
+                            showSearchHereButton = false
+                        },
+                        label = { Text(category) }
+                    )
+                }
+            }
+
+            // Search Here Button
+            AnimatedVisibility(
+                visible = showSearchHereButton,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = mapTopPadding + 60.dp)
+                    .zIndex(1f)
+            ) {
+                Button(
+                    onClick = {
+                        val target = cameraPositionState.position.target
+                        cardsViewModel.loadStores(
+                            target.latitude,
+                            target.longitude,
+                            categories = selectedCategories.toList().takeIf { it.isNotEmpty() }
+                        )
+                        lastSearchedLocation = target
+                        showSearchHereButton = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                ) {
+                    Text("Search Here")
+                }
             }
 
             if (coordinatorUiState.isPermissionDenied) {

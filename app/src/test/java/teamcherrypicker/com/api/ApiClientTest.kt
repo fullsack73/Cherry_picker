@@ -43,7 +43,7 @@ class ApiClientTest {
 
         // Then
         val request = server.takeRequest()
-        assertEquals("/user-location", request.path)
+        assertEquals("/api/location", request.path)
         assertEquals("POST", request.method)
         val expectedBody = Gson().toJson(location)
         assertEquals(expectedBody, request.body.readUtf8())
