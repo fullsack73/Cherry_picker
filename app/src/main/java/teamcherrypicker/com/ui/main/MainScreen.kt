@@ -6,6 +6,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +48,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -65,10 +67,7 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.CameraMoveStartedReason
 import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import com.google.maps.android.compose.rememberMarkerState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import teamcherrypicker.com.R
 import teamcherrypicker.com.Screen
@@ -83,7 +82,6 @@ import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.google.maps.android.compose.clustering.Clustering
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import teamcherrypicker.com.ui.main.map.StoreClusterItem
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -281,12 +279,6 @@ fun MainScreen(
                     Log.d("MapDebug", "Cluster update count=${clusterItems.size} sample=$sample")
                 }
 
-                // Cache BitmapDescriptors to avoid recreating them on every render
-                val cafeIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW) }
-                val diningIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE) }
-                val shoppingIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET) }
-                val defaultIcon = remember { BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE) }
-
                 Clustering(
                     items = clusterItems,
                     onClusterItemClick = { item ->
@@ -295,21 +287,17 @@ fun MainScreen(
                         true
                     },
                     clusterItemContent = { item ->
-                        val icon = when (item.store.normalizedCategory) {
-                            "CAFE" -> cafeIcon
-                            "DINING" -> diningIcon
-                            "SHOPPING" -> shoppingIcon
-                            else -> defaultIcon
+                        val iconColor = when (item.store.normalizedCategory) {
+                            "CAFE" -> Color(0xFFF9A825)
+                            "DINING" -> Color(0xFFFB8C00)
+                            "SHOPPING" -> Color(0xFF7E57C2)
+                            else -> Color(0xFF1E88E5)
                         }
-                        Marker(
-                            state = rememberMarkerState(position = item.getPosition()),
-                            title = item.getTitle(),
-                            snippet = item.getSnippet(),
-                            icon = icon,
-                            onClick = {
-                                selectedStore = item.store
-                                true
-                            }
+                        val label = item.store.name.firstOrNull()?.uppercaseChar()?.toString() ?: "•"
+
+                        StoreMarkerIcon(
+                            label = label,
+                            backgroundColor = iconColor
                         )
                     }
                 )
@@ -445,6 +433,27 @@ fun MainScreen(
 
             // Removed the bottom-right "+" FloatingActionButton per request
         }
+    }
+}
+
+@Composable
+private fun StoreMarkerIcon(
+    label: String,
+    backgroundColor: Color
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .shadow(6.dp, CircleShape)
+            .background(backgroundColor, CircleShape)
+            .border(2.dp, Color.White, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White
+        )
     }
 }
 
