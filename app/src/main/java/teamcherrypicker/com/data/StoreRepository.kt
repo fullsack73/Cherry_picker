@@ -3,6 +3,7 @@ package teamcherrypicker.com.data
 import android.util.Log
 import teamcherrypicker.com.api.ApiClient
 import teamcherrypicker.com.api.ApiService
+import teamcherrypicker.com.api.StoreDto
 
 class StoreRepository(private val apiService: ApiService = ApiClient.apiService) {
 
@@ -21,21 +22,7 @@ class StoreRepository(private val apiService: ApiService = ApiClient.apiService)
             categories = categoriesParam
         )
 
-        val stores = response.data.mapNotNull { dto ->
-            if (dto.latitude == null || dto.longitude == null || dto.latitude.isNaN() || dto.longitude.isNaN()) return@mapNotNull null
-            
-            Store(
-                id = dto.id,
-                name = dto.name ?: "Unknown Store",
-                branch = dto.branch,
-                address = dto.address,
-                latitude = dto.latitude,
-                longitude = dto.longitude,
-                sourceCategory = dto.sourceCategory ?: "UNKNOWN",
-                normalizedCategory = dto.normalizedCategory ?: "UNKNOWN",
-                distance = dto.distance
-            )
-        }.distinctBy { it.id }
+        val stores = response.data.mapNotNull(::mapStoreDto).distinctBy { it.id }
 
         Log.d(
             "StoreRepository",
@@ -50,5 +37,36 @@ class StoreRepository(private val apiService: ApiService = ApiClient.apiService)
         }
 
         return stores
+    }
+
+    suspend fun searchStores(query: String, limit: Int? = null): List<Store> {
+        val sanitized = query.trim()
+        if (sanitized.isEmpty()) {
+            return emptyList()
+        }
+
+        val response = apiService.searchStores(query = sanitized, limit = limit)
+        val stores = response.data.mapNotNull(::mapStoreDto).distinctBy { it.id }
+
+        Log.d("StoreRepository", "Search query='$sanitized' returned ${stores.size} stores")
+        return stores
+    }
+
+    private fun mapStoreDto(dto: StoreDto): Store? {
+        val lat = dto.latitude ?: return null
+        val lon = dto.longitude ?: return null
+        if (lat.isNaN() || lon.isNaN()) return null
+
+        return Store(
+            id = dto.id,
+            name = dto.name ?: "Unknown Store",
+            branch = dto.branch,
+            address = dto.address,
+            latitude = lat,
+            longitude = lon,
+            sourceCategory = dto.sourceCategory ?: "UNKNOWN",
+            normalizedCategory = dto.normalizedCategory ?: "UNKNOWN",
+            distance = dto.distance ?: 0.0
+        )
     }
 }

@@ -7,22 +7,20 @@ const fixturesDir = path.join(__dirname, 'fixtures');
 const cardsCsv = path.join(fixturesDir, 'cards_sample.csv');
 const merchantsCsv = path.join(fixturesDir, 'merchants_sample.csv');
 
-describe('GET /api/stores/nearby', () => {
-  beforeAll(async () => {
-    // Wait for the app's bootstrap to finish if it hasn't already
-    // In test environment, index.js might not auto-bootstrap or might use a temp DB
-    // We need to ensure data is loaded into the app's db instance
-    await loadData({
-      db: app.db,
-      cardsCsvPath: cardsCsv,
-      merchantsCsvPath: merchantsCsv,
-      categoryMap: {
-        외식: 'DINING',
-        '카페/음료': 'CAFE',
-        쇼핑: 'SHOPPING',
-      },
-    });
+beforeAll(async () => {
+  await loadData({
+    db: app.db,
+    cardsCsvPath: cardsCsv,
+    merchantsCsvPath: merchantsCsv,
+    categoryMap: {
+      외식: 'DINING',
+      '카페/음료': 'CAFE',
+      쇼핑: 'SHOPPING',
+    },
   });
+});
+
+describe('GET /api/stores/nearby', () => {
 
   it('should return 200 and a list of stores with valid parameters', async () => {
     const response = await request(app)
@@ -108,5 +106,35 @@ describe('GET /api/stores/nearby', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual([]);
+  });
+});
+
+describe('GET /api/stores/search', () => {
+  it('returns matches when query text exists', async () => {
+    const response = await request(app)
+      .get('/api/stores/search')
+      .query({ query: '카페' });
+
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body.data)).toBe(true);
+    expect(response.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(response.body.data[0].name).toContain('카페');
+  });
+
+  it('honors the limit parameter', async () => {
+    const response = await request(app)
+      .get('/api/stores/search')
+      .query({ query: '테스트', limit: 1 });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.length).toBeLessThanOrEqual(1);
+  });
+
+  it('returns 400 when query is missing', async () => {
+    const response = await request(app)
+      .get('/api/stores/search');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('INVALID_QUERY');
   });
 });

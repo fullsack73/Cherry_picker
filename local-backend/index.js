@@ -10,7 +10,7 @@ const {
   fetchCardBenefits,
   fetchLatestRefreshMetadata,
 } = require('./src/queries/cards');
-const { fetchNearbyStores } = require('./src/queries/stores');
+const { fetchNearbyStores, searchStoresByKeyword } = require('./src/queries/stores');
 
 const app = express();
 const port = 3000;
@@ -179,6 +179,34 @@ app.get('/api/stores/nearby', (req, res) => {
   } catch (error) {
     console.error('Error fetching nearby stores:', error);
     sendError(res, 500, 'INTERNAL_ERROR', 'Failed to fetch nearby stores');
+  }
+});
+
+app.get('/api/stores/search', (req, res) => {
+  const queryParam = typeof req.query.query === 'string' ? req.query.query : req.query.q;
+  const normalizedQuery = typeof queryParam === 'string' ? queryParam.trim() : '';
+
+  if (!normalizedQuery) {
+    return sendError(res, 400, 'INVALID_QUERY', 'query parameter is required');
+  }
+
+  let limit;
+  if (req.query.limit !== undefined) {
+    const parsed = Number(req.query.limit);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      limit = Math.min(parsed, 50);
+    }
+  }
+
+  try {
+    const stores = searchStoresByKeyword(db, {
+      query: normalizedQuery,
+      limit,
+    });
+    res.json({ data: stores });
+  } catch (error) {
+    console.error('Error searching stores:', error);
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to search stores');
   }
 });
 

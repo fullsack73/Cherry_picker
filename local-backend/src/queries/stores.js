@@ -19,6 +19,25 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+function normalizeQuery(query) {
+  if (!query || typeof query !== 'string') {
+    return '';
+  }
+  return query.trim();
+}
+
+function escapeLikePattern(value) {
+  return value.replace(/[%_\\]/g, match => `\\${match}`);
+}
+
+function clampLimit(limit, fallback = 10) {
+  const asNumber = Number(limit);
+  if (!Number.isInteger(asNumber) || asNumber <= 0) {
+    return fallback;
+  }
+  return Math.min(asNumber, 50);
+}
+
 function fetchNearbyStores(db, { latitude, longitude, radius = 500, categories = [] }) {
   requireDb(db);
 
@@ -71,6 +90,34 @@ function fetchNearbyStores(db, { latitude, longitude, radius = 500, categories =
     .sort((a, b) => a.distance - b.distance);
 }
 
+function searchStoresByKeyword(db, { query, limit = 10 } = {}) {
+  requireDb(db);
+
+  const normalized = normalizeQuery(query);
+  if (!normalized) {
+    return [];
+  }
+
+  const safeLimit = clampLimit(limit);
+  const escaped = escapeLikePattern(normalized);
+  const containsPattern = `%${escaped}%`;
+
+  const stmt = db.prepare(`
+    SELECT id, name, branch, address, longitude, latitude, source_category, normalized_category
+    FROM merchants
+    WHERE name LIKE ? ESCAPE '\\'
+       OR (branch IS NOT NULL AND branch != '' AND branch LIKE ? ESCAPE '\\')
+       OR (address IS NOT NULL AND address != '' AND address LIKE ? ESCAPE '\\')
+    ORDER BY name COLLATE NOCASE
+    LIMIT ?
+  `);
+
+  return stmt
+    .all(containsPattern, containsPattern, containsPattern, safeLimit)
+    .map(store => ({ ...store, distance: 0 }));
+}
+
 module.exports = {
   fetchNearbyStores,
+  searchStoresByKeyword,
 };

@@ -48,5 +48,5 @@ data class StoreDto(
     @SerializedName("longitude") val longitude: Double?,
     @SerializedName("source_category") val sourceCategory: String?,
     @SerializedName("normalized_category") val normalizedCategory: String?,
-    @SerializedName("distance") val distance: Double
+    @SerializedName("distance") val distance: Double?
 )

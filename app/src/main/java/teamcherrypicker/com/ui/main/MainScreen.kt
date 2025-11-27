@@ -118,6 +118,7 @@ fun MainScreen(
     val benefitsState by cardsViewModel.benefitsState.collectAsState()
     val storesUiState by cardsViewModel.storesUiState.collectAsState()
     val locationUiState by locationUiStateFlow.collectAsState()
+    val storeSearchState by cardsViewModel.storeSearchState.collectAsState()
 
     val bottomSheetState = rememberModalBottomSheetState()
     val scaffoldState = rememberBottomSheetScaffoldState(bottomSheetState = bottomSheetState)
@@ -158,6 +159,13 @@ fun MainScreen(
     var selectedStore by remember { mutableStateOf<Store?>(null) }
     var selectedCardId by remember { mutableStateOf<Int?>(null) }
     var clusterPreviewStores by remember { mutableStateOf<List<Store>>(emptyList()) }
+    var appliedSearchStoreId by remember { mutableStateOf<Int?>(null) }
+
+    val displayedStores = if (storeSearchState.results.isNotEmpty()) {
+        storeSearchState.results
+    } else {
+        storesUiState.stores
+    }
 
     LaunchedEffect(cardsUiState.cards) {
         if (cardsUiState.cards.isEmpty()) {
@@ -247,6 +255,37 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(storeSearchState.errorMessage) {
+        storeSearchState.errorMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            cardsViewModel.clearSearchMessage()
+        }
+    }
+
+    LaunchedEffect(storeSearchState.results.firstOrNull()?.id) {
+        val store = storeSearchState.results.firstOrNull() ?: return@LaunchedEffect
+        if (appliedSearchStoreId == store.id) return@LaunchedEffect
+        appliedSearchStoreId = store.id
+
+        val target = LatLng(store.latitude, store.longitude)
+        val update = CameraUpdateFactory.newLatLngZoom(target, 16f)
+        cameraPositionState.animate(update)
+        selectedStore = store
+        lastSearchedLocation = target
+        cardsViewModel.loadStores(
+            target.latitude,
+            target.longitude,
+            categories = selectedCategories.toList().takeIf { it.isNotEmpty() }
+        )
+        showSearchHereButton = false
+    }
+
+    LaunchedEffect(storeSearchState.results.isEmpty()) {
+        if (storeSearchState.results.isEmpty()) {
+            appliedSearchStoreId = null
+        }
+    }
+
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -286,8 +325,8 @@ fun MainScreen(
                 contentDescription = mapContentDescription,
                 contentPadding = mapContentPadding
             ) {
-                val clusterItems = remember(storesUiState.stores) {
-                    storesUiState.stores.map { StoreClusterItem(it) }
+                val clusterItems = remember(displayedStores) {
+                    displayedStores.map { StoreClusterItem(it) }
                 }
 
                 LaunchedEffect(clusterItems) {
@@ -349,7 +388,11 @@ fun MainScreen(
             CategoryQuickFilters(
                 categories = categories,
                 selectedCategories = selectedCategories,
-                isLoading = storesUiState.isLoading,
+                isLoading = if (storeSearchState.results.isNotEmpty()) {
+                    storeSearchState.isSearching
+                } else {
+                    storesUiState.isLoading
+                },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = filterRowTop, end = filterRowEnd)
@@ -373,8 +416,9 @@ fun MainScreen(
             }
 
             // Search Here Button
+            val showSearchHere = showSearchHereButton && storeSearchState.results.isEmpty()
             AnimatedVisibility(
-                visible = showSearchHereButton,
+                visible = showSearchHere,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = mapTopPadding + 60.dp)
@@ -460,9 +504,17 @@ fun MainScreen(
                 navController = navController,
                 isDarkMode = isDarkMode,
                 onToggleDarkMode = onToggleDarkMode,
+                isSearching = storeSearchState.isSearching,
+                onClearSearch = {
+                    cardsViewModel.clearStoreSearch()
+                    clusterPreviewStores = emptyList()
+                    showSearchHereButton = false
+                },
+                onQueryChanged = { query ->
+                    cardsViewModel.searchStores(query)
+                },
                 onSearch = { query ->
-                    selectedCardId = null
-                    cardsViewModel.loadCards(category = query.takeIf { it.isNotBlank() })
+                    cardsViewModel.searchStores(query)
                 }
             )
 
@@ -838,6 +890,9 @@ fun FloatingSearchBar(
     navController: NavController,
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
+    isSearching: Boolean,
+    onClearSearch: () -> Unit,
+    onQueryChanged: (String) -> Unit,
     onSearch: (String) -> Unit
 ) {
     var text by remember { mutableStateOf("") }
@@ -848,25 +903,42 @@ fun FloatingSearchBar(
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
             .testTag("floatingSearchBar")
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search Icon",
-                modifier = Modifier.padding(start = 8.dp)
+                modifier = Modifier.padding(start = 8.dp, end = 4.dp)
             )
             TextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = {
+                    text = it
+                    val trimmed = it.trim()
+                    if (trimmed.isEmpty()) {
+                        onClearSearch()
+                    } else {
+                        onQueryChanged(trimmed)
+                    }
+                },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Search for a place or store...") },
+                singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch(text) }),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        val query = text.trim()
+                        if (query.isNotEmpty()) {
+                            onSearch(query)
+                        } else {
+                            onClearSearch()
+                        }
+                    }
+                ),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,
@@ -875,6 +947,22 @@ fun FloatingSearchBar(
                     unfocusedIndicatorColor = Color.Transparent,
                 )
             )
+            if (isSearching) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .size(18.dp),
+                    strokeWidth = 2.dp
+                )
+            }
+            if (text.isNotBlank()) {
+                IconButton(onClick = {
+                    text = ""
+                    onClearSearch()
+                }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                }
+            }
             Box {
                 IconButton(onClick = { showMenu = true }) {
                     Icon(Icons.Default.MoreVert, contentDescription = "Settings")
@@ -904,7 +992,7 @@ fun FloatingSearchBar(
                         text = { Text("Profile Settings") },
                         leadingIcon = { Icon(Icons.Filled.Person, contentDescription = "Profile Settings") },
                         onClick = {
-                            Log.d("Settings", "Profile Settings clicked")
+                            onSettingsClick()
                             showMenu = false
                         }
                     )

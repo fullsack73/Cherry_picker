@@ -31,4 +31,10 @@ interface ApiService {
         @Query("radius") radius: Int? = null,
         @Query("categories") categories: String? = null
     ): StoresResponse
+
+    @GET("/api/stores/search")
+    suspend fun searchStores(
+        @Query("query") query: String,
+        @Query("limit") limit: Int? = null
+    ): StoresResponse
 }

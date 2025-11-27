@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +38,12 @@ data class StoresUiState(
     val errorMessage: String? = null
 )
 
+data class StoreSearchState(
+    val isSearching: Boolean = false,
+    val results: List<Store> = emptyList(),
+    val errorMessage: String? = null
+)
+
 class CardsViewModel(
     private val repository: CardsRepository,
     private val storeRepository: StoreRepository
@@ -50,6 +57,11 @@ class CardsViewModel(
 
     private val _storesUiState = MutableStateFlow(StoresUiState())
     val storesUiState: StateFlow<StoresUiState> = _storesUiState.asStateFlow()
+
+    private val _storeSearchState = MutableStateFlow(StoreSearchState())
+    val storeSearchState: StateFlow<StoreSearchState> = _storeSearchState.asStateFlow()
+
+    private var storeSearchJob: Job? = null
 
     private val benefitsCache = ConcurrentHashMap<Int, List<CardBenefit>>()
 
@@ -94,6 +106,41 @@ class CardsViewModel(
                 }
             }
         }
+    }
+
+    fun searchStores(query: String, limit: Int = 10) {
+        val sanitized = query.trim()
+        if (sanitized.isEmpty()) {
+            clearStoreSearch()
+            return
+        }
+
+        storeSearchJob?.cancel()
+        storeSearchJob = viewModelScope.launch {
+            _storeSearchState.update { it.copy(isSearching = true, errorMessage = null) }
+            try {
+                val stores = storeRepository.searchStores(sanitized, limit)
+                _storeSearchState.value = StoreSearchState(
+                    isSearching = false,
+                    results = stores,
+                    errorMessage = if (stores.isEmpty()) "No stores matched '$sanitized'" else null
+                )
+            } catch (throwable: Throwable) {
+                _storeSearchState.value = StoreSearchState(
+                    isSearching = false,
+                    errorMessage = throwable.message ?: "Unable to search stores"
+                )
+            }
+        }
+    }
+
+    fun clearStoreSearch() {
+        storeSearchJob?.cancel()
+        _storeSearchState.value = StoreSearchState()
+    }
+
+    fun clearSearchMessage() {
+        _storeSearchState.update { it.copy(errorMessage = null) }
     }
 
     fun selectCard(cardId: Int) {
