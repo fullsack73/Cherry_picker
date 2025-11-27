@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.Settings
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,10 +25,15 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -41,6 +47,12 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.rounded.LocalCafe
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.ShoppingBag
+import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material3.*
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -50,6 +62,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -57,7 +73,10 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -82,7 +101,9 @@ import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.google.maps.android.compose.clustering.Clustering
+import com.google.maps.android.clustering.Cluster
 import teamcherrypicker.com.ui.main.map.StoreClusterItem
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -136,6 +157,7 @@ fun MainScreen(
 
     var selectedStore by remember { mutableStateOf<Store?>(null) }
     var selectedCardId by remember { mutableStateOf<Int?>(null) }
+    var clusterPreviewStores by remember { mutableStateOf<List<Store>>(emptyList()) }
 
     LaunchedEffect(cardsUiState.cards) {
         if (cardsUiState.cards.isEmpty()) {
@@ -281,60 +303,73 @@ fun MainScreen(
 
                 Clustering(
                     items = clusterItems,
+                    onClusterClick = { cluster: Cluster<StoreClusterItem> ->
+                        if (cluster.items.size <= CLUSTER_DETAIL_THRESHOLD) {
+                            clusterPreviewStores = cluster.items.map { it.store }
+                            true
+                        } else {
+                            false
+                        }
+                    },
                     onClusterItemClick = { item ->
                         Log.d("MapDebug", "Cluster marker tapped id=${item.store.id} name=${item.store.name}")
+                        clusterPreviewStores = emptyList()
                         selectedStore = item.store
                         true
                     },
                     clusterItemContent = { item ->
-                        val iconColor = when (item.store.normalizedCategory) {
-                            "CAFE" -> Color(0xFFF9A825)
-                            "DINING" -> Color(0xFFFB8C00)
-                            "SHOPPING" -> Color(0xFF7E57C2)
-                            else -> Color(0xFF1E88E5)
-                        }
-                        val label = item.store.name.firstOrNull()?.uppercaseChar()?.toString() ?: "•"
-
                         StoreMarkerIcon(
-                            label = label,
-                            backgroundColor = iconColor
+                            category = item.store.normalizedCategory,
+                            storeName = item.store.name,
+                            calloutText = item.store.name.takeIf { selectedStore?.id == item.store.id }
                         )
                     }
                 )
             }
 
-            // Filter Chips
-            Row(
+            AnimatedVisibility(
+                visible = clusterPreviewStores.isNotEmpty(),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .zIndex(1.5f)
+            ) {
+                ClusterPreviewCard(
+                    stores = clusterPreviewStores,
+                    onStoreSelected = { store ->
+                        selectedStore = store
+                        clusterPreviewStores = emptyList()
+                    },
+                    onDismiss = { clusterPreviewStores = emptyList() }
+                )
+            }
+
+                val filterRowTop = safeDrawingPadding.calculateTopPadding() + floatingSearchBarHeight + 8.dp
+                val filterRowEnd = safeDrawingPadding.calculateEndPadding(layoutDirection) + 24.dp
+
+            CategoryQuickFilters(
+                categories = categories,
+                selectedCategories = selectedCategories,
+                isLoading = storesUiState.isLoading,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = mapTopPadding + 8.dp, end = 16.dp)
-                    .zIndex(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                categories.forEach { category ->
-                    val isSelected = selectedCategories.contains(category)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            if (isSelected) selectedCategories.remove(category)
-                            else selectedCategories.add(category)
+                    .padding(top = filterRowTop, end = filterRowEnd)
+                    .zIndex(1f)
+            ) { category ->
+                val isSelected = selectedCategories.contains(category)
+                if (isSelected) selectedCategories.remove(category) else selectedCategories.add(category)
 
-                            val target = cameraPositionState.position.target
-                            Log.d(
-                                "MapDebug",
-                                "Category toggled=$category selected=${selectedCategories.joinToString()} lat=${target.latitude} lon=${target.longitude}"
-                            )
-                            cardsViewModel.loadStores(
-                                target.latitude,
-                                target.longitude,
-                                categories = selectedCategories.toList().takeIf { it.isNotEmpty() }
-                            )
-                            lastSearchedLocation = target
-                            showSearchHereButton = false
-                        },
-                        label = { Text(category) }
-                    )
-                }
+                val target = cameraPositionState.position.target
+                Log.d(
+                    "MapDebug",
+                    "Category toggled=$category selected=${selectedCategories.joinToString()} lat=${target.latitude} lon=${target.longitude}"
+                )
+                cardsViewModel.loadStores(
+                    target.latitude,
+                    target.longitude,
+                    categories = selectedCategories.toList().takeIf { it.isNotEmpty() }
+                )
+                lastSearchedLocation = target
+                showSearchHereButton = false
             }
 
             // Search Here Button
@@ -436,24 +471,315 @@ fun MainScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ClusterPreviewCard(
+    stores: List<Store>,
+    onStoreSelected: (Store) -> Unit,
+    onDismiss: () -> Unit
+) {
+    if (stores.isEmpty()) return
+
+    Surface(
+        tonalElevation = 12.dp,
+        shadowElevation = 12.dp,
+        shape = RoundedCornerShape(32.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(min = 260.dp, max = 340.dp)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Cluster preview",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${stores.size} places",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close cluster preview"
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                userScrollEnabled = stores.size > 9
+            ) {
+                items(stores, key = { it.id }) { store ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onStoreSelected(store) },
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        StoreMarkerIcon(
+                            category = store.normalizedCategory,
+                            storeName = store.name,
+                            markerSize = 52.dp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = store.name,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextButton(onClick = onDismiss) {
+                Text(text = "Close")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryQuickFilters(
+    categories: List<String>,
+    selectedCategories: List<String>,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier,
+    onToggleCategory: (String) -> Unit
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        categories.forEach { category ->
+            val isSelected = selectedCategories.contains(category)
+            CategoryQuickFilterChip(
+                category = category,
+                isSelected = isSelected,
+                onClick = { onToggleCategory(category) }
+            )
+        }
+
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryQuickFilterChip(
+    category: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val style = remember(category) { markerStyleFor(category) }
+    val shape = RoundedCornerShape(50)
+    val baseBackground = Color.White
+    val background = if (isSelected) style.backgroundColor.copy(alpha = 0.12f) else baseBackground
+    val borderColor = if (isSelected) style.backgroundColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .border(1.dp, borderColor, shape)
+            .background(background, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(
+            imageVector = style.icon,
+            contentDescription = category.toCategoryLabel(),
+            tint = style.backgroundColor,
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = category.toCategoryLabel(),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+        )
+    }
+}
+
+private const val CLUSTER_DETAIL_THRESHOLD = 30
+
+private data class StoreMarkerStyle(
+    val backgroundColor: Color,
+    val innerBorderColor: Color,
+    val ringColor: Color,
+    val icon: ImageVector,
+    val contentDescription: String
+)
+
+private fun markerStyleFor(category: String): StoreMarkerStyle {
+    return when (category.uppercase(Locale.US)) {
+        "CAFE" -> StoreMarkerStyle(
+            backgroundColor = Color(0xFFFFB74D),
+            innerBorderColor = Color(0xFFFFE0B2),
+            ringColor = Color(0xFFFFCC80),
+            icon = Icons.Rounded.LocalCafe,
+            contentDescription = "Cafe"
+        )
+        "DINING" -> StoreMarkerStyle(
+            backgroundColor = Color(0xFFFF8A65),
+            innerBorderColor = Color(0xFFFFD0BD),
+            ringColor = Color(0xFFFFAB91),
+            icon = Icons.Rounded.Restaurant,
+            contentDescription = "Dining"
+        )
+        "SHOPPING" -> StoreMarkerStyle(
+            backgroundColor = Color(0xFFEC407A),
+            innerBorderColor = Color(0xFFF8BBD0),
+            ringColor = Color(0xFFF48FB1),
+            icon = Icons.Rounded.ShoppingBag,
+            contentDescription = "Shopping"
+        )
+        "CONVENIENCE" -> StoreMarkerStyle(
+            backgroundColor = Color(0xFF42A5F5),
+            innerBorderColor = Color(0xFFBBDEFB),
+            ringColor = Color(0xFF90CAF9),
+            icon = Icons.Rounded.Storefront,
+            contentDescription = "Convenience store"
+        )
+        else -> StoreMarkerStyle(
+            backgroundColor = Color(0xFF1E88E5),
+            innerBorderColor = Color(0xFFBBDEFB),
+            ringColor = Color(0xFF90CAF9),
+            icon = Icons.Rounded.Place,
+            contentDescription = "Store"
+        )
+    }
+}
+
 @Composable
 private fun StoreMarkerIcon(
-    label: String,
-    backgroundColor: Color
+    category: String,
+    storeName: String = "",
+    markerSize: Dp = 56.dp,
+    calloutText: String? = null
 ) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .shadow(6.dp, CircleShape)
-            .background(backgroundColor, CircleShape)
-            .border(2.dp, Color.White, CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = Color.White
-        )
+    val style = remember(category) { markerStyleFor(category) }
+    val density = LocalDensity.current
+    val ringWidth = (markerSize.value * 0.04f).coerceAtLeast(1f).dp
+    val haloPaddingDp = markerSize * 0.12f
+    val badgeSize = markerSize * 0.78f
+    val coreSize = badgeSize * 0.77f
+    val iconSize = coreSize * 0.58f
+    val glowElevation = (markerSize.value * 0.18f).coerceAtLeast(2f).dp
+    val borderWidth = (markerSize.value * 0.035f).coerceAtLeast(1.5f).dp
+    val ringWidthPx = with(density) { ringWidth.toPx() }
+    val haloPaddingPx = with(density) { haloPaddingDp.toPx() }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (!calloutText.isNullOrBlank()) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    tonalElevation = 6.dp,
+                    shadowElevation = 6.dp,
+                    color = Color.White,
+                ) {
+                    Text(
+                        text = calloutText,
+                        modifier = Modifier
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                            .widthIn(max = 180.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFF1F2D3D),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Canvas(
+                    modifier = Modifier
+                        .width(16.dp)
+                        .height(8.dp)
+                ) {
+                    val triangle = Path().apply {
+                        moveTo(0f, 0f)
+                        lineTo(size.width, 0f)
+                        lineTo(size.width / 2f, size.height)
+                        close()
+                    }
+                    drawPath(triangle, Color.White)
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+        }
+
+        Box(
+            modifier = Modifier.size(markerSize),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val radius = size.minDimension / 2f
+
+                // Soft halo + dotted ring mimic the mock's layered marker target.
+                drawCircle(
+                    color = style.ringColor.copy(alpha = 0.18f),
+                    radius = radius
+                )
+                drawCircle(
+                    color = style.ringColor.copy(alpha = 0.45f),
+                    radius = radius - haloPaddingPx,
+                    style = Stroke(
+                        width = ringWidthPx,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(ringWidthPx * 2f, ringWidthPx * 1.4f))
+                    )
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(badgeSize)
+                    .shadow(glowElevation, CircleShape, clip = false)
+                    .background(Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(coreSize)
+                        .background(style.backgroundColor, CircleShape)
+                        .border(borderWidth, style.innerBorderColor, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = style.icon,
+                        contentDescription = storeName.ifBlank { style.contentDescription },
+                        tint = Color.White,
+                        modifier = Modifier.size(iconSize)
+                    )
+                }
+            }
+        }
     }
 }
 

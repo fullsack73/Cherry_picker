@@ -6,6 +6,7 @@ private val CATEGORY_LABELS = mapOf(
     "ALL_MERCHANTS" to "모든가맹점",
     "BENEFIT_VOUCHER" to "바우처",
     "BILLS" to "공과금",
+    "CAFE" to "카페",
     "CAFE_BEVERAGE" to "카페/음료",
     "CASHBACK" to "캐시백",
     "CONVENIENCE" to "편의점",
