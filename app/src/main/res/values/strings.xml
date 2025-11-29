@@ -6,4 +6,8 @@
     <string name="location_status_permission_denied">Turn on location access to recenter.</string>
     <string name="location_status_fallback">Showing %1$s as a fallback</string>
     <string name="location_status_fallback_city">Seoul</string>
+    <string name="search_anchor_marker_title">Search area</string>
+    <string name="search_anchor_marker_snippet">Stores refreshed around this pin</string>
+    <string name="user_location_marker_title">You are here</string>
+    <string name="user_location_marker_snippet">Current GPS position</string>
 </resources>

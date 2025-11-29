@@ -82,11 +82,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.MapsInitializer
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.CameraMoveStartedReason
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import teamcherrypicker.com.R
 import teamcherrypicker.com.Screen
@@ -147,6 +152,18 @@ fun MainScreen(
         bottom = safeDrawingPadding.calculateBottomPadding()
     )
     val mapContentDescription = stringResource(R.string.map_content_description)
+    var searchAnchorMarkerDescriptor by remember { mutableStateOf<BitmapDescriptor?>(null) }
+    var userLocationMarkerDescriptor by remember { mutableStateOf<BitmapDescriptor?>(null) }
+
+    LaunchedEffect(context) {
+        runCatching {
+            MapsInitializer.initialize(context)
+            searchAnchorMarkerDescriptor = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+            userLocationMarkerDescriptor = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN)
+        }.onFailure { error ->
+            Log.e("MapDebug", "Failed to init map descriptor", error)
+        }
+    }
 
     // Filter State
     val categories = listOf("DINING", "CAFE", "SHOPPING")
@@ -161,7 +178,8 @@ fun MainScreen(
     var clusterPreviewStores by remember { mutableStateOf<List<Store>>(emptyList()) }
     var appliedSearchStoreId by remember { mutableStateOf<Int?>(null) }
 
-    val displayedStores = if (storeSearchState.results.isNotEmpty()) {
+    val hasActiveStoreSearch = storeSearchState.results.isNotEmpty()
+    val displayedStores = if (hasActiveStoreSearch) {
         storeSearchState.results
     } else {
         storesUiState.stores
@@ -340,6 +358,62 @@ fun MainScreen(
                     Log.d("MapDebug", "Cluster update count=${clusterItems.size} sample=$sample")
                 }
 
+                val userLocation = locationUiState.lastKnownLocation
+                val userLocationMarkerState = remember(userLocation) {
+                    userLocation?.let { MarkerState(position = it) }
+                }
+
+                if (userLocationMarkerState != null) {
+                    val userTitle = stringResource(R.string.user_location_marker_title)
+                    val userSnippet = stringResource(R.string.user_location_marker_snippet)
+                    Marker(
+                        state = userLocationMarkerState,
+                        title = userTitle,
+                        snippet = userSnippet,
+                        icon = userLocationMarkerDescriptor,
+                        alpha = 1f,
+                        zIndex = 1.1f
+                    )
+                }
+
+                val searchAnchorLocation = lastSearchedLocation
+                val shouldShowSearchAnchor = remember(
+                    searchAnchorLocation,
+                    locationUiState.lastKnownLocation,
+                    hasActiveStoreSearch
+                ) {
+                    if (searchAnchorLocation == null || hasActiveStoreSearch) return@remember false
+                    val userLocation = locationUiState.lastKnownLocation
+                    if (userLocation == null) return@remember true
+
+                    val dist = FloatArray(1)
+                    android.location.Location.distanceBetween(
+                        userLocation.latitude,
+                        userLocation.longitude,
+                        searchAnchorLocation.latitude,
+                        searchAnchorLocation.longitude,
+                        dist
+                    )
+                    dist[0] > SEARCH_ANCHOR_VISIBILITY_THRESHOLD_METERS
+                }
+
+                val searchAnchorMarkerState = remember(searchAnchorLocation) {
+                    searchAnchorLocation?.let { MarkerState(position = it) }
+                }
+
+                if (shouldShowSearchAnchor && searchAnchorMarkerState != null) {
+                    val anchorTitle = stringResource(R.string.search_anchor_marker_title)
+                    val anchorSnippet = stringResource(R.string.search_anchor_marker_snippet)
+                    Marker(
+                        state = searchAnchorMarkerState,
+                        title = anchorTitle,
+                        snippet = anchorSnippet,
+                        icon = searchAnchorMarkerDescriptor,
+                        alpha = 0.92f,
+                        zIndex = 0.8f
+                    )
+                }
+
                 Clustering(
                     items = clusterItems,
                     onClusterClick = { cluster: Cluster<StoreClusterItem> ->
@@ -388,7 +462,7 @@ fun MainScreen(
             CategoryQuickFilters(
                 categories = categories,
                 selectedCategories = selectedCategories,
-                isLoading = if (storeSearchState.results.isNotEmpty()) {
+                isLoading = if (hasActiveStoreSearch) {
                     storeSearchState.isSearching
                 } else {
                     storesUiState.isLoading
@@ -416,7 +490,7 @@ fun MainScreen(
             }
 
             // Search Here Button
-            val showSearchHere = showSearchHereButton && storeSearchState.results.isEmpty()
+            val showSearchHere = showSearchHereButton && !hasActiveStoreSearch
             AnimatedVisibility(
                 visible = showSearchHere,
                 modifier = Modifier
@@ -682,6 +756,7 @@ private fun CategoryQuickFilterChip(
 }
 
 private const val CLUSTER_DETAIL_THRESHOLD = 30
+private const val SEARCH_ANCHOR_VISIBILITY_THRESHOLD_METERS = 120f
 
 private data class StoreMarkerStyle(
     val backgroundColor: Color,
