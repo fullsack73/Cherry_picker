@@ -4,10 +4,10 @@ const crypto = require('crypto');
 const csv = require('csv-parser');
 const { createDatabase } = require('../db');
 
-const DEFAULT_CARDS_CSV = path.join(__dirname, '..', '..', '..', 'data', 'cards_db.csv');
+const DEFAULT_CARDS_CSV = path.join(__dirname, '..', '..', '..', 'data', 'card_benefits_structured_db_upgrade.csv');
 
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data');
-const MERCHANT_CSV_CANDIDATES = ['merchants_db.csv', 'merchants_db (1).csv'];
+const MERCHANT_CSV_CANDIDATES = ['merchants_new.csv', 'merchants_db.csv', 'merchants_db (1).csv'];
 
 function resolveDefaultMerchantsCsv() {
   for (const candidate of MERCHANT_CSV_CANDIDATES) {
@@ -98,9 +98,9 @@ async function loadCardsData(cardsCsvPath, categoryMap) {
       cardMap.set(cardName, { name: cardName, issuer });
     }
 
-    const description = normalizeUnicode(readField(row, '상세_혜택'));
-    const keyword = normalizeUnicode(readField(row, '혜택_키워드'));
-    const sourceCategory = normalizeUnicode(readField(row, '카드혜택_분류')) || '기타';
+    const description = normalizeUnicode(readField(row, 'benefit_summary'));
+    const keyword = normalizeUnicode(readField(row, 'merchant_name'));
+    const sourceCategory = normalizeUnicode(readField(row, 'category')) || '기타';
     const normalizedCategory = categoryMap[sourceCategory] || 'OTHER';
 
     benefits.push({
