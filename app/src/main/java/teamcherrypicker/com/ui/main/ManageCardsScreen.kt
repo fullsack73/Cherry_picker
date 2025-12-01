@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -32,7 +33,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,6 +92,22 @@ fun ManageCardsScreen(
 
     val myCards = filteredCards.filter { ownedCardIds.contains(it.id) }
     val discoverCards = filteredCards.filter { !ownedCardIds.contains(it.id) }
+
+    val discoverListState = rememberLazyListState()
+    val shouldLoadMore by remember(discoverListState) {
+        derivedStateOf {
+            val layoutInfo = discoverListState.layoutInfo
+            val totalItems = layoutInfo.totalItemsCount
+            val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            totalItems > 0 && lastVisibleItemIndex >= totalItems - 3
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore, uiState.hasMore, uiState.isLoading, uiState.isAppending) {
+        if (shouldLoadMore && uiState.hasMore && !uiState.isLoading && !uiState.isAppending) {
+            viewModel.loadMoreCards()
+        }
+    }
 
     val onAddCard: (CardSummary) -> Unit = { card ->
         if (!ownedCardIds.contains(card.id)) {
@@ -194,13 +213,25 @@ fun ManageCardsScreen(
 
             // "All Cards" List
             Text("All Cards", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            LazyColumn {
+            LazyColumn(state = discoverListState) {
                 items(discoverCards, key = { it.id }) { card ->
                     ManageCardListItem(
                         card = card,
                         buttonText = "Add",
                         onClick = { onAddCard(card) }
                     )
+                }
+                if (uiState.isAppending) {
+                    item(key = "loading_more") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(0.5f))
+                        }
+                    }
                 }
             }
         }

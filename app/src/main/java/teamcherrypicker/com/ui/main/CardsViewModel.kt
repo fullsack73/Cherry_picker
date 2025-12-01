@@ -20,9 +20,11 @@ import teamcherrypicker.com.data.StoreRepository
 
 data class CardsUiState(
     val isLoading: Boolean = true,
+    val isAppending: Boolean = false,
     val cards: List<CardSummary> = emptyList(),
     val meta: CardsMeta? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val hasMore: Boolean = true
 )
 
 data class BenefitsUiState(
@@ -65,8 +67,25 @@ class CardsViewModel(
 
     private val benefitsCache = ConcurrentHashMap<Int, List<CardBenefit>>()
 
+    private var nextOffset = 0
+    private var currentCategory: String? = null
+    private var currentLimit: Int = DEFAULT_PAGE_LIMIT
+
     init {
-        loadCards()
+        refreshCards()
+    }
+
+    fun refreshCards(category: String? = null, limit: Int = DEFAULT_PAGE_LIMIT) {
+        currentCategory = category
+        currentLimit = limit
+        nextOffset = 0
+        fetchCards(offset = 0, append = false)
+    }
+
+    fun loadMoreCards() {
+        val state = _uiState.value
+        if (state.isLoading || state.isAppending || !state.hasMore) return
+        fetchCards(offset = nextOffset, append = true)
     }
 
     fun loadStores(latitude: Double, longitude: Double, radius: Int = 500, categories: List<String>? = null) {
@@ -86,22 +105,49 @@ class CardsViewModel(
         }
     }
 
-    fun loadCards(category: String? = null, limit: Int = 25, offset: Int = 0) {
+    fun loadCards(category: String? = null, limit: Int = DEFAULT_PAGE_LIMIT, offset: Int = 0) {
+        currentCategory = category
+        currentLimit = limit
+        nextOffset = if (offset > 0) offset else 0
+        fetchCards(offset = offset, append = offset > 0)
+    }
+
+    private fun fetchCards(offset: Int, append: Boolean) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            if (append) {
+                _uiState.update { it.copy(isAppending = true, errorMessage = null) }
+            } else {
+                _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            }
             try {
-                val page: CardsPage = repository.fetchCards(limit = limit, offset = offset, category = category)
-                _uiState.value = CardsUiState(
-                    isLoading = false,
-                    cards = page.cards,
-                    meta = page.meta,
-                    errorMessage = null
+                val page: CardsPage = repository.fetchCards(
+                    limit = currentLimit,
+                    offset = offset,
+                    category = currentCategory
                 )
+                val newOffset = offset + page.cards.size
+                nextOffset = newOffset
+                _uiState.update { current ->
+                    val mergedCards = if (append) current.cards + page.cards else page.cards
+                    current.copy(
+                        isLoading = false,
+                        isAppending = false,
+                        cards = mergedCards,
+                        meta = page.meta,
+                        errorMessage = null,
+                        hasMore = newOffset < page.meta.total
+                    )
+                }
             } catch (throwable: Throwable) {
                 _uiState.update { current ->
                     current.copy(
-                        isLoading = false,
-                        errorMessage = throwable.message ?: "Unable to load cards"
+                        isLoading = if (append) current.isLoading else false,
+                        isAppending = false,
+                        errorMessage = throwable.message ?: if (append) {
+                            "Unable to load more cards"
+                        } else {
+                            "Unable to load cards"
+                        }
                     )
                 }
             }
@@ -168,6 +214,7 @@ class CardsViewModel(
     }
 
     companion object {
+        private const val DEFAULT_PAGE_LIMIT = 50
         fun provideFactory(
             repository: CardsRepository = CardsRepository(),
             storeRepository: StoreRepository = StoreRepository()
