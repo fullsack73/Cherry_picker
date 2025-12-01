@@ -3,7 +3,8 @@ const os = require('os');
 const path = require('path');
 const { createDatabase } = require('../src/db');
 const { loadData } = require('../src/ingest/loadData');
-const { RecommendationEngine } = require('../src/recommendations/recommendationEngine');
+const { RecommendationEngine, RecommendationAbortedError } = require('../src/recommendations/recommendationEngine');
+const { GeminiClientError } = require('../src/recommendations/geminiClient');
 
 const fixturesDir = path.join(__dirname, 'fixtures');
 const cardsCsv = path.join(fixturesDir, 'cards_location_variants.csv');
@@ -120,6 +121,39 @@ describe('RecommendationEngine', () => {
     warnSpy.mockRestore();
   });
 
+  it('stops calling Gemini again after a timeout within the same request', async () => {
+    db = createDatabase(createTempDbPath());
+    await seedDatabase(db);
+
+    const gammaId = getCardId(db, '추천카드 GAMMA');
+    const epsilonId = getCardId(db, '추천카드 EPSILON');
+    const geminiMock = {
+      scoreCard: jest
+        .fn()
+        .mockRejectedValueOnce(new GeminiClientError('timed out', 'TIMEOUT'))
+        .mockResolvedValue({ score: 91, rationale: 'should not be called' }),
+    };
+    const engine = new RecommendationEngine({
+      db,
+      geminiClient: geminiMock,
+      cacheTtlMs: 60_000,
+      logger: { info: jest.fn(), warn: jest.fn() },
+    });
+
+    const response = await engine.getRecommendations({
+      storeId: 77,
+      storeName: 'LLM Timeout Shop',
+      storeCategory: 'SHOPPING',
+      ownedCardIds: [gammaId, epsilonId],
+      limit: 2,
+    });
+
+    expect(geminiMock.scoreCard).toHaveBeenCalledTimes(1);
+    expect(response.meta.scoreSources.llm).toBe(0);
+    expect(response.meta.scoreSources.fallback).toBeGreaterThanOrEqual(2);
+    expect(response.data.every((entry) => entry.scoreSource === 'fallback')).toBe(true);
+  });
+
   it('caches identical requests for five minutes', async () => {
     db = createDatabase(createTempDbPath());
     await seedDatabase(db);
@@ -144,5 +178,41 @@ describe('RecommendationEngine', () => {
     expect(geminiMock.scoreCard).toHaveBeenCalledTimes(1);
     expect(first.meta.cached).toBe(false);
     expect(second.meta.cached).toBe(true);
+  });
+
+  it('propagates cancellation when the caller aborts the request', async () => {
+    db = createDatabase(createTempDbPath());
+    await seedDatabase(db);
+
+    const gammaId = getCardId(db, '추천카드 GAMMA');
+    const controller = new AbortController();
+    const geminiMock = {
+      scoreCard: jest.fn(({ signal }) => new Promise((_, reject) => {
+        const error = new GeminiClientError('aborted', 'CANCELLED');
+        if (!signal) {
+          reject(error);
+          return;
+        }
+        if (signal.aborted) {
+          reject(error);
+          return;
+        }
+        signal.addEventListener('abort', () => reject(error), { once: true });
+      })),
+    };
+    const engine = new RecommendationEngine({ db, geminiClient: geminiMock, cacheTtlMs: 60_000 });
+
+    const responsePromise = engine.getRecommendations({
+      storeId: 55,
+      storeName: 'Cancel Cafe',
+      storeCategory: 'CAFE',
+      ownedCardIds: [gammaId],
+      limit: 5,
+    }, { signal: controller.signal });
+
+    controller.abort();
+
+    await expect(responsePromise).rejects.toBeInstanceOf(RecommendationAbortedError);
+    expect(geminiMock.scoreCard).toHaveBeenCalledTimes(1);
   });
 });

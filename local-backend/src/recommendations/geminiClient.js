@@ -21,7 +21,7 @@ class GeminiClient {
     this.logger = logger || console;
   }
 
-  async scoreCard({ storeName, storeCategory, cardName, normalizedCategories = [], discover = false } = {}) {
+  async scoreCard({ storeName, storeCategory, cardName, normalizedCategories = [], discover = false, signal } = {}) {
     if (!this.apiKey) {
       throw new GeminiClientError('GEMINI_API_KEY missing', 'CONFIGURATION');
     }
@@ -41,12 +41,24 @@ class GeminiClient {
       ],
     };
 
-    return this.executeWithRetry(() => this.performRequest(url, body));
+    return this.executeWithRetry(() => this.performRequest(url, body, signal), signal);
   }
 
-  async performRequest(url, body) {
+  async performRequest(url, body, signal) {
+    if (signal?.aborted) {
+      throw new GeminiClientError('Gemini request aborted', 'CANCELLED');
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const abortHandler = () => controller.abort();
+
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(timeout);
+        throw new GeminiClientError('Gemini request aborted', 'CANCELLED');
+      }
+      signal.addEventListener('abort', abortHandler, { once: true });
+    }
 
     try {
       const response = await this.fetchImpl(url, {
@@ -67,6 +79,9 @@ class GeminiClient {
       return this.parseResponse(payload);
     } catch (error) {
       if (error.name === 'AbortError') {
+        if (signal?.aborted) {
+          throw new GeminiClientError('Gemini request aborted', 'CANCELLED');
+        }
         throw new GeminiClientError('Gemini request timed out', 'TIMEOUT');
       }
       if (error instanceof GeminiClientError) {
@@ -75,18 +90,29 @@ class GeminiClient {
       throw new GeminiClientError(error.message || 'Gemini request failed', 'NETWORK');
     } finally {
       clearTimeout(timeout);
+      if (signal) {
+        signal.removeEventListener('abort', abortHandler);
+      }
     }
   }
 
-  async executeWithRetry(operation) {
+  async executeWithRetry(operation, signal) {
     let attempt = 0;
     let lastError;
     while (attempt < 2) {
+      if (signal?.aborted) {
+        throw new GeminiClientError('Gemini scoring aborted', 'CANCELLED');
+      }
       try {
         return await operation();
       } catch (error) {
         lastError = error;
-        const shouldRetry = error instanceof GeminiClientError && (error.code === 'NETWORK' || error.code === 'TIMEOUT');
+        const isGeminiError = error instanceof GeminiClientError;
+        const isCancelled = isGeminiError && error.code === 'CANCELLED';
+        if (isCancelled) {
+          throw error;
+        }
+        const shouldRetry = isGeminiError && (error.code === 'NETWORK' || error.code === 'TIMEOUT');
         if (!shouldRetry || attempt === 1) {
           this.logger?.warn?.('Gemini scoring failed', { code: error.code });
           throw error;

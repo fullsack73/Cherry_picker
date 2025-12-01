@@ -5,6 +5,14 @@ const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 25;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+class RecommendationAbortedError extends Error {
+  constructor(message = 'Recommendation request aborted') {
+    super(message);
+    this.name = 'RecommendationAbortedError';
+    this.code = 'ABORTED';
+  }
+}
+
 class RecommendationEngine {
   constructor({ db, geminiClient, cacheTtlMs = CACHE_TTL_MS, logger = console, now = () => Date.now() } = {}) {
     if (!db) {
@@ -22,7 +30,9 @@ class RecommendationEngine {
     this.cache.clear();
   }
 
-  async getRecommendations(params = {}) {
+  async getRecommendations(params = {}, options = {}) {
+    const { signal } = options || {};
+    this.ensureActive(signal);
     const resolvedLimit = this.normalizeLimit(params.limit);
     const normalizedParams = {
       ...params,
@@ -39,10 +49,23 @@ class RecommendationEngine {
     const startedAt = this.now();
 
     if (cached && cached.expiresAt > startedAt) {
+      this.ensureActive(signal);
       return this.decorateResult(cached.payload, startedAt, true);
     }
 
-    const computed = await this.computeRecommendations(normalizedParams);
+    let computed;
+    try {
+      computed = await this.computeRecommendations(normalizedParams, { signal });
+    } catch (error) {
+      if (error instanceof RecommendationAbortedError) {
+        throw error;
+      }
+      if (error instanceof GeminiClientError && error.code === 'CANCELLED') {
+        throw new RecommendationAbortedError();
+      }
+      throw error;
+    }
+    this.ensureActive(signal);
     this.cache.set(cacheKey, {
       payload: computed,
       expiresAt: startedAt + this.cacheTtlMs,
@@ -137,7 +160,9 @@ class RecommendationEngine {
     return result;
   }
 
-  async computeRecommendations(params) {
+  async computeRecommendations(params, options = {}) {
+    const { signal } = options || {};
+    this.ensureActive(signal);
     const normalizedCategory = this.normalizeCategory(params.storeCategory);
     const storeName = typeof params.storeName === 'string' ? params.storeName.trim() : '';
     const ownedCardIds = this.normalizeOwnedCardIds(params.ownedCardIds);
@@ -149,6 +174,7 @@ class RecommendationEngine {
       discover: params.discover,
       limit: params.limit,
     });
+    this.ensureActive(signal);
 
     const cardMap = new Map(candidateCards.map((card) => [card.id, card]));
     const locationBenefits = fetchLocationPriorityBenefits(this.db, {
@@ -171,6 +197,7 @@ class RecommendationEngine {
 
     if (missingLocationCardIds.length > 0) {
       const hydrated = await this.hydrateCardsByIds(missingLocationCardIds);
+      this.ensureActive(signal);
       hydrated.forEach((card) => cardMap.set(card.id, card));
     }
 
@@ -181,6 +208,7 @@ class RecommendationEngine {
 
     if (orderedCardIds.length === 0) {
       const fallbacks = await this.fetchCategoryFallbackCards(normalizedCategory, params.limit);
+      this.ensureActive(signal);
       fallbacks.forEach((card) => {
         if (!cardMap.has(card.id)) {
           cardMap.set(card.id, card);
@@ -199,7 +227,8 @@ class RecommendationEngine {
       storeName,
       discover: params.discover,
       storeCategory: params.storeCategory,
-    });
+    }, { signal });
+    this.ensureActive(signal);
 
     const sorted = scored.entries.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -351,11 +380,14 @@ class RecommendationEngine {
     storeName,
     storeCategory,
     discover,
-  }) {
+  }, options = {}) {
+    const { signal } = options || {};
     const scoreSources = { location: 0, llm: 0, fallback: 0 };
     const entries = [];
+    let llmSuppressed = false;
 
     for (const cardId of orderedCardIds) {
+      this.ensureActive(signal);
       const card = cardMap.get(cardId);
       if (!card) continue;
 
@@ -376,7 +408,7 @@ class RecommendationEngine {
         continue;
       }
 
-      const llmEligible = Boolean(this.geminiClient) && !discover;
+      const llmEligible = Boolean(this.geminiClient) && !discover && !llmSuppressed;
       if (llmEligible) {
         try {
           const llmResult = await this.geminiClient.scoreCard({
@@ -385,6 +417,7 @@ class RecommendationEngine {
             cardName: card.name,
             normalizedCategories: card.normalizedCategories,
             discover,
+            signal,
           });
           const clampedScore = Math.max(0, Math.min(100, Math.round(llmResult.score)));
           entries.push({
@@ -399,8 +432,16 @@ class RecommendationEngine {
           scoreSources.llm += 1;
           continue;
         } catch (error) {
+          if (error instanceof GeminiClientError && error.code === 'CANCELLED') {
+            throw error;
+          }
           if (!(error instanceof GeminiClientError)) {
             this.logger?.warn?.('Unexpected Gemini error during scoring', { message: error.message });
+          } else if (['NETWORK', 'TIMEOUT', 'CONFIGURATION'].includes(error.code)) {
+            if (!llmSuppressed) {
+              llmSuppressed = true;
+              this.logger?.info?.('Gemini scoring disabled for current request', { code: error.code });
+            }
           }
         }
       }
@@ -447,10 +488,17 @@ class RecommendationEngine {
       rationale: reasonParts.join('; '),
     };
   }
+
+  ensureActive(signal) {
+    if (signal?.aborted) {
+      throw new RecommendationAbortedError();
+    }
+  }
 }
 
 module.exports = {
   RecommendationEngine,
   DEFAULT_LIMIT,
   MAX_LIMIT,
+  RecommendationAbortedError,
 };

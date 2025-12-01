@@ -409,9 +409,15 @@ fun MainScreen(
         sheetPeekHeight = effectivePeek,
         sheetShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
     ) { paddingValues ->
+        val scaffoldContentPadding = PaddingValues(
+            start = paddingValues.calculateStartPadding(layoutDirection),
+            top = paddingValues.calculateTopPadding(),
+            end = paddingValues.calculateEndPadding(layoutDirection),
+            bottom = 0.dp
+        )
         Box(
             modifier = Modifier
-                .padding(paddingValues)
+                .padding(scaffoldContentPadding)
                 .fillMaxSize()
         ) {
             MapSurface(

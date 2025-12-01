@@ -11,7 +11,12 @@ const {
   fetchLatestRefreshMetadata,
 } = require('./src/queries/cards');
 const { fetchNearbyStores, searchStoresByKeyword } = require('./src/queries/stores');
-const { RecommendationEngine, DEFAULT_LIMIT, MAX_LIMIT } = require('./src/recommendations/recommendationEngine');
+const {
+  RecommendationEngine,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  RecommendationAbortedError,
+} = require('./src/recommendations/recommendationEngine');
 const { GeminiClient } = require('./src/recommendations/geminiClient');
 
 const app = express();
@@ -36,7 +41,8 @@ const bootstrapPromise = (shouldBootstrapData ? loadData({ db }) : Promise.resol
   }
 });
 
-const geminiClient = new GeminiClient();
+const shouldDisableGemini = process.env.NODE_ENV === 'test' && process.env.ENABLE_GEMINI_IN_TESTS !== '1';
+const geminiClient = shouldDisableGemini ? null : new GeminiClient();
 const recommendationEngine = new RecommendationEngine({ db, geminiClient });
 
 const stores = [
@@ -285,15 +291,39 @@ app.post('/api/recommendations', async (req, res) => {
     return sendError(res, 400, validation.code, validation.message);
   }
 
+  const controller = new AbortController();
+  const handleAbort = () => {
+    if (!controller.signal.aborted) {
+      controller.abort();
+    }
+  };
+  req.on('aborted', handleAbort);
+  req.on('close', handleAbort);
+
+  const removeListener = (req.off?.bind(req)) || req.removeListener.bind(req);
+  const cleanup = () => {
+    removeListener('aborted', handleAbort);
+    removeListener('close', handleAbort);
+  };
+
   try {
-    const result = await recommendationEngine.getRecommendations(validation.value);
+    const result = await recommendationEngine.getRecommendations(validation.value, { signal: controller.signal });
+    if (controller.signal.aborted) {
+      cleanup();
+      return;
+    }
     res.set({
       'X-RateLimit-Limit': '60',
       'X-RateLimit-Remaining': '59',
       'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 60),
     });
+    cleanup();
     return res.json(result);
   } catch (error) {
+    cleanup();
+    if (controller.signal.aborted || error instanceof RecommendationAbortedError) {
+      return;
+    }
     console.error('Failed to generate recommendations:', error);
     return sendError(res, 500, 'RECOMMENDATION_FAILED', 'Unable to generate recommendations at this time');
   }
