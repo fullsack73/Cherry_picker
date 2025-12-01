@@ -71,11 +71,11 @@ Assigned roles: database-engineer, api-engineer, android-engineer, testing-engin
 **Assigned implementer:** testing-engineer  
 **Dependencies:** Task Groups 1-3
 
-- [ ] 4.0 Consolidate feature-specific quality checks
-  - [ ] 4.1 Review the tests introduced in 1.1, 2.1, and 3.1 to understand current coverage.
-  - [ ] 4.2 Identify coverage gaps for key workflows (store selection → owned recommendation, Discover flow, LLM timeout fallback) without scanning unrelated modules.
-  - [ ] 4.3 Add up to 8 targeted integration/E2E tests (API + Android instrumentation or backend contract) to cover the documented gaps only.
-  - [ ] 4.4 Run ONLY the combined feature-specific suite (tests from 1.1, 2.1, 3.1, 4.3) and report results; do not execute the entire repository suite.
+- [x] 4.0 Consolidate feature-specific quality checks
+  - [x] 4.1 Review the tests introduced in 1.1, 2.1, and 3.1 to understand current coverage.
+  - [x] 4.2 Identify coverage gaps for key workflows (store selection → owned recommendation, Discover flow, LLM timeout fallback) without scanning unrelated modules.
+  - [x] 4.3 Add up to 8 targeted integration/E2E tests (API + Android instrumentation or backend contract) to cover the documented gaps only.
+  - [x] 4.4 Run ONLY the combined feature-specific suite (tests from 1.1, 2.1, 3.1, 4.3) and report results; do not execute the entire repository suite.
 
 **Acceptance Criteria:**
 - Added tests (max 8) ensure end-to-end coverage for owned vs discover flows and fallback behavior.
