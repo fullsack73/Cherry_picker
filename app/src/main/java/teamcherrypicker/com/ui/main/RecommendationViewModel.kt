@@ -11,11 +11,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import teamcherrypicker.com.api.RecommendationRequestDto
+import teamcherrypicker.com.api.StreamEvent
+import teamcherrypicker.com.api.StreamingRecommendationClient
 import teamcherrypicker.com.data.OwnedCardsStore
 import teamcherrypicker.com.data.RecommendationCard
 import teamcherrypicker.com.data.RecommendationMeta
 import teamcherrypicker.com.data.RecommendationRepository
 import teamcherrypicker.com.data.RecommendationResult
+import teamcherrypicker.com.data.RecommendationScoreBreakdown
+import teamcherrypicker.com.data.RecommendationScoreSource
 import teamcherrypicker.com.data.Store
 
 data class RecommendationUiState(
@@ -24,9 +29,12 @@ data class RecommendationUiState(
     val meta: RecommendationMeta? = null,
     val ownedCardIds: Set<Int> = emptySet(),
     val isLoading: Boolean = false,
+    val isStreaming: Boolean = false,
+    val streamProgress: Int = 0,
     val errorMessage: String? = null,
     val discoverMode: Boolean = false,
     val discoverInFlight: Boolean = false,
+    val discoverEnabled: Boolean = true,
     val fallbackBannerMessage: String? = null
 )
 
@@ -62,7 +70,7 @@ class RecommendationViewModel(
                     if (fetchJob?.isActive == true) {
                         pendingOwnedCardsRefresh = true
                     } else {
-                        fetchRecommendations(context)
+                        fetchRecommendationsStreaming(context)
                     }
                 }
             }
@@ -76,9 +84,11 @@ class RecommendationViewModel(
         _uiState.value = RecommendationUiState(
             selectedStore = store,
             ownedCardIds = latestOwnedCardIds,
-            isLoading = true
+            isLoading = true,
+            isStreaming = true,
+            discoverEnabled = false
         )
-        fetchRecommendations(context)
+        fetchRecommendationsStreaming(context)
     }
 
     fun clearSelection() {
@@ -89,15 +99,18 @@ class RecommendationViewModel(
 
     fun retry() {
         val context = lastContext ?: return
-        fetchRecommendations(context)
+        fetchRecommendationsStreaming(context)
     }
 
     fun showDiscoverRecommendations() {
+        val currentState = _uiState.value
+        if (!currentState.discoverEnabled || currentState.isStreaming) return
+        
         val context = lastContext ?: return
         if (context.discover) return
         val discoverContext = context.copy(discover = true)
         lastContext = discoverContext
-        fetchRecommendations(discoverContext)
+        fetchRecommendationsBatch(discoverContext)
     }
 
     fun showOwnedRecommendations() {
@@ -105,10 +118,136 @@ class RecommendationViewModel(
         if (!context.discover) return
         val ownedContext = context.copy(discover = false)
         lastContext = ownedContext
-        fetchRecommendations(ownedContext)
+        fetchRecommendationsStreaming(ownedContext)
     }
 
-    private fun fetchRecommendations(context: RecommendationRequestContext) {
+    private fun fetchRecommendationsStreaming(context: RecommendationRequestContext) {
+        pendingOwnedCardsRefresh = false
+        fetchJob?.cancel()
+        
+        val job = viewModelScope.launch {
+            _uiState.update { current ->
+                current.copy(
+                    selectedStore = context.store,
+                    cards = emptyList(),
+                    isLoading = true,
+                    isStreaming = true,
+                    streamProgress = 0,
+                    errorMessage = null,
+                    discoverMode = false,
+                    discoverEnabled = false,
+                    fallbackBannerMessage = null
+                )
+            }
+
+            val storeCategory = context.store.normalizedCategory.ifBlank { context.store.sourceCategory }
+            val request = RecommendationRequestDto(
+                storeId = context.store.id,
+                storeName = context.store.name,
+                storeCategory = storeCategory,
+                ownedCardIds = latestOwnedCardIds.toList(),
+                discover = false,
+                locationKeywords = context.locationKeywords,
+                limit = 10
+            )
+
+            var cardCount = 0
+            val collectedCards = mutableListOf<RecommendationCard>()
+
+            try {
+                StreamingRecommendationClient.streamRecommendations(request).collect { event ->
+                    when (event) {
+                        is StreamEvent.Card -> {
+                            cardCount++
+                            val card = RecommendationCard(
+                                cardId = event.cardId,
+                                cardName = event.cardName,
+                                issuer = event.issuer,
+                                normalizedCategories = event.normalizedCategories,
+                                score = event.score,
+                                scoreSource = RecommendationScoreSource.fromRaw(event.scoreSource),
+                                rationale = event.rationale
+                            )
+                            
+                            // Insert card in sorted order (highest score first)
+                            val insertIndex = collectedCards.indexOfFirst { it.score < card.score }
+                            if (insertIndex == -1) {
+                                collectedCards.add(card)
+                            } else {
+                                collectedCards.add(insertIndex, card)
+                            }
+                            
+                            _uiState.update { current ->
+                                current.copy(
+                                    cards = collectedCards.toList(),
+                                    isLoading = false,
+                                    streamProgress = cardCount
+                                )
+                            }
+                        }
+                        is StreamEvent.Done -> {
+                            val meta = RecommendationMeta(
+                                total = event.total,
+                                limit = event.limit,
+                                discover = event.discover,
+                                storeId = event.storeId,
+                                latencyMs = 0,
+                                cached = false,
+                                scoreSources = RecommendationScoreBreakdown(
+                                    location = event.locationCount,
+                                    llm = event.llmCount,
+                                    fallback = event.fallbackCount
+                                )
+                            )
+                            _uiState.update { current ->
+                                current.copy(
+                                    meta = meta,
+                                    isLoading = false,
+                                    isStreaming = false,
+                                    discoverEnabled = true,
+                                    fallbackBannerMessage = buildFallbackMessage(meta)
+                                )
+                            }
+                        }
+                        is StreamEvent.Error -> {
+                            _uiState.update { current ->
+                                current.copy(
+                                    isLoading = false,
+                                    isStreaming = false,
+                                    discoverEnabled = true,
+                                    errorMessage = event.message
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                if (e !is CancellationException) {
+                    _uiState.update { current ->
+                        current.copy(
+                            isLoading = false,
+                            isStreaming = false,
+                            discoverEnabled = true,
+                            errorMessage = e.message ?: "Stream failed"
+                        )
+                    }
+                }
+            }
+        }
+
+        job.invokeOnCompletion { cause ->
+            if (pendingOwnedCardsRefresh && cause !is CancellationException) {
+                pendingOwnedCardsRefresh = false
+                lastContext?.let { pendingContext ->
+                    fetchRecommendationsStreaming(pendingContext)
+                }
+            }
+        }
+        fetchJob = job
+    }
+
+    // Non-streaming fallback for discover mode
+    private fun fetchRecommendationsBatch(context: RecommendationRequestContext) {
         pendingOwnedCardsRefresh = false
         fetchJob?.cancel()
         val job = viewModelScope.launch {
@@ -144,7 +283,7 @@ class RecommendationViewModel(
             if (pendingOwnedCardsRefresh && cause !is CancellationException) {
                 pendingOwnedCardsRefresh = false
                 lastContext?.let { pendingContext ->
-                    fetchRecommendations(pendingContext)
+                    fetchRecommendationsStreaming(pendingContext)
                 }
             }
         }
@@ -158,9 +297,11 @@ class RecommendationViewModel(
                 cards = result.cards,
                 meta = result.meta,
                 isLoading = false,
+                isStreaming = false,
                 errorMessage = null,
                 discoverMode = result.meta.discover,
                 discoverInFlight = false,
+                discoverEnabled = true,
                 fallbackBannerMessage = buildFallbackMessage(result.meta)
             )
         }

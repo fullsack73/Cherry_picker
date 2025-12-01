@@ -20,6 +20,7 @@ const {
   RecommendationAbortedError,
 } = require('./src/recommendations/recommendationEngine');
 const { GeminiClient } = require('./src/recommendations/geminiClient');
+const { streamRecommendations } = require('./src/recommendations/streamingRecommendations');
 
 const app = express();
 const port = 3000;
@@ -284,6 +285,78 @@ app.get('/api/stores/search', (req, res) => {
   } catch (error) {
     console.error('Error searching stores:', error);
     sendError(res, 500, 'INTERNAL_ERROR', 'Failed to search stores');
+  }
+});
+
+// SSE streaming endpoint for recommendations
+app.post('/api/recommendations/stream', async (req, res) => {
+  const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  console.log('[stream] inbound', { requestId, bodyKeys: Object.keys(req.body || {}) });
+
+  const validation = validateRecommendationPayload(req.body);
+  if (!validation.ok) {
+    return sendError(res, 400, validation.code, validation.message);
+  }
+
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering if behind proxy
+  res.flushHeaders();
+
+  // Send immediate ping to keep connection alive
+  res.write(': ping\n\n');
+
+  const controller = new AbortController();
+  let clientDisconnected = false;
+  
+  // Use 'aborted' event instead of 'close' - 'close' fires when request body is done reading
+  req.on('aborted', () => {
+    console.log('[stream] client aborted', { requestId });
+    clientDisconnected = true;
+    controller.abort();
+  });
+  
+  // Also listen to socket close for actual disconnection
+  req.socket.on('close', () => {
+    if (!res.writableEnded) {
+      console.log('[stream] socket closed', { requestId });
+      clientDisconnected = true;
+      controller.abort();
+    }
+  });
+
+  try {
+    console.log('[stream] creating generator', { requestId, params: validation.value });
+    const generator = streamRecommendations(
+      { db, geminiClient, logger: console },
+      validation.value,
+      { signal: controller.signal, requestId }
+    );
+
+    console.log('[stream] starting iteration', { requestId });
+    let eventCount = 0;
+    for await (const event of generator) {
+      if (controller.signal.aborted) break;
+      eventCount++;
+      console.log('[stream] yielding event', { requestId, eventCount, type: event.type });
+      const data = `data: ${JSON.stringify(event)}\n\n`;
+      res.write(data);
+      // Force flush for SSE
+      if (typeof res.flush === 'function') {
+        res.flush();
+      }
+    }
+    console.log('[stream] iteration complete', { requestId, eventCount });
+  } catch (error) {
+    console.error('[stream] error', { requestId, code: error.code, message: error.message, stack: error.stack });
+    if (error.code !== 'ABORTED') {
+      res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+    }
+  } finally {
+    res.end();
   }
 });
 

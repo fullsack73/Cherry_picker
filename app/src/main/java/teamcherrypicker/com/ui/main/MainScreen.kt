@@ -1238,7 +1238,24 @@ fun RecommendationSheetContent(
             )
         }
 
-        if (uiState.isLoading && uiState.cards.isNotEmpty()) {
+        if (uiState.isStreaming && uiState.cards.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                LinearProgressIndicator(
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "Scoring ${uiState.streamProgress} cards...",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else if (uiState.isLoading && uiState.cards.isNotEmpty()) {
             LinearProgressIndicator(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1267,8 +1284,18 @@ fun RecommendationSheetContent(
                 contentAlignment = Alignment.Center
             ) {
                 when {
-                    uiState.isLoading -> {
-                        CircularProgressIndicator()
+                    uiState.isStreaming || uiState.isLoading -> {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator()
+                            if (uiState.isStreaming) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Scoring your cards...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
 
                     uiState.errorMessage != null -> {
@@ -1301,7 +1328,7 @@ fun RecommendationSheetContent(
 
         RecommendationSheetActions(
             discoverMode = uiState.discoverMode,
-            buttonEnabled = uiState.selectedStore != null && !uiState.isLoading && !uiState.discoverInFlight,
+            buttonEnabled = uiState.selectedStore != null && !uiState.isLoading && !uiState.discoverInFlight && !uiState.isStreaming && uiState.discoverEnabled,
             onDiscover = onDiscover,
             onShowOwned = onShowOwned
         )
