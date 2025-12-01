@@ -1184,16 +1184,6 @@ fun RecommendationSheetContent(
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .navigationBarsPadding()
     ) {
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                .align(Alignment.CenterHorizontally)
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
         Text(
             text = "Recommendations for $storeName",
             style = MaterialTheme.typography.titleLarge,
