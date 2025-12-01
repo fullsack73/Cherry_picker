@@ -456,7 +456,7 @@ class RecommendationEngine {
         continue;
       }
 
-      const llmEligible = Boolean(this.geminiClient) && !discover && !llmSuppressed;
+      const llmEligible = Boolean(this.geminiClient) && !discover && !llmSuppressed && scoreSources.llm < 5;
       if (llmEligible) {
         try {
           const llmResult = await this.geminiClient.scoreCard({

@@ -10,8 +10,8 @@ class GeminiClient {
   constructor({
     apiKey = process.env.GEMINI_API_KEY,
     fetchImpl = typeof fetch === 'function' ? fetch.bind(globalThis) : null,
-    timeoutMs = 1000,
-    retryDelayMs = 200,
+    timeoutMs = 10000,
+    retryDelayMs = 500,
     logger = console,
   } = {}) {
     this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
