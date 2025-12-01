@@ -7,7 +7,7 @@ const { createDatabase } = require('../db');
 const DEFAULT_CARDS_CSV = path.join(__dirname, '..', '..', '..', 'data', 'card_benefits_structured_db_upgrade.csv');
 
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data');
-const MERCHANT_CSV_CANDIDATES = ['merchants_new.csv', 'merchants_db.csv', 'merchants_db (1).csv'];
+const MERCHANT_CSV_CANDIDATES = ['merchants_db.csv', 'merchants_new.csv', 'merchants_db (1).csv'];
 
 function resolveDefaultMerchantsCsv() {
   for (const candidate of MERCHANT_CSV_CANDIDATES) {
@@ -122,7 +122,10 @@ async function loadMerchantData(merchantsCsvPath, categoryMap) {
   const merchants = [];
 
   await parseCsv(merchantsCsvPath, (row) => {
-    const name = normalizeUnicode(readField(row, '상호명'));
+    let name = normalizeUnicode(readField(row, '상호명'));
+    if (!name) {
+      name = normalizeUnicode(readField(row, '업소명'));
+    }
     if (!name) {
       return;
     }

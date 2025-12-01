@@ -204,13 +204,22 @@ fun MainScreen(
         position = CameraPosition.fromLatLngZoom(LocationUiState.DEFAULT_FALLBACK_LOCATION, 12f)
     }
 
+    var currentCameraTarget by remember { mutableStateOf(cameraPositionState.position.target) }
+
+    LaunchedEffect(cameraPositionState) {
+        snapshotFlow { cameraPositionState.position.target }
+            .collect { target ->
+                currentCameraTarget = target
+            }
+    }
+
     // Update showSearchHereButton when camera moves
-    LaunchedEffect(cameraPositionState.position.target) {
+    LaunchedEffect(currentCameraTarget) {
         lastSearchedLocation?.let { last ->
             val dist = FloatArray(1)
             android.location.Location.distanceBetween(
                 last.latitude, last.longitude,
-                cameraPositionState.position.target.latitude, cameraPositionState.position.target.longitude,
+                currentCameraTarget.latitude, currentCameraTarget.longitude,
                 dist
             )
             if (dist[0] > 500) { // Show if moved > 500m
@@ -475,7 +484,7 @@ fun MainScreen(
                 val isSelected = selectedCategories.contains(category)
                 if (isSelected) selectedCategories.remove(category) else selectedCategories.add(category)
 
-                val target = cameraPositionState.position.target
+                val target = currentCameraTarget
                 Log.d(
                     "MapDebug",
                     "Category toggled=$category selected=${selectedCategories.joinToString()} lat=${target.latitude} lon=${target.longitude}"
@@ -500,7 +509,7 @@ fun MainScreen(
             ) {
                 Button(
                     onClick = {
-                        val target = cameraPositionState.position.target
+                        val target = currentCameraTarget
                         Log.d(
                             "MapDebug",
                             "Search Here triggered lat=${target.latitude} lon=${target.longitude} categories=${selectedCategories.joinToString()}"
