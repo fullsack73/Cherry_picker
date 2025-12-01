@@ -1415,14 +1415,6 @@ private fun RecommendationCardRow(card: RecommendationCard) {
             }
 
             ScoreSourceBadge(card.scoreSource)
-
-            card.rationale?.takeIf { it.isNotBlank() }?.let { rationale ->
-                Text(
-                    text = rationale,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 }
