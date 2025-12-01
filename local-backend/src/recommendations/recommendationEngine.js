@@ -31,7 +31,7 @@ class RecommendationEngine {
   }
 
   async getRecommendations(params = {}, options = {}) {
-    const { signal } = options || {};
+    const { signal, requestId } = options || {};
     this.ensureActive(signal);
     const resolvedLimit = this.normalizeLimit(params.limit);
     const normalizedParams = {
@@ -39,6 +39,8 @@ class RecommendationEngine {
       limit: resolvedLimit,
       discover: Boolean(params.discover),
     };
+
+    this.logStage('engine.start', requestId, { limit: resolvedLimit, discover: Boolean(params.discover) });
 
     if (typeof normalizedParams.storeName === 'string') {
       normalizedParams.storeName = normalizedParams.storeName.trim();
@@ -50,12 +52,15 @@ class RecommendationEngine {
 
     if (cached && cached.expiresAt > startedAt) {
       this.ensureActive(signal);
+      this.logStage('engine.cacheHit', requestId, { cachedAt: cached.expiresAt - this.cacheTtlMs });
       return this.decorateResult(cached.payload, startedAt, true);
     }
 
     let computed;
     try {
-      computed = await this.computeRecommendations(normalizedParams, { signal });
+      this.logStage('engine.compute.start', requestId);
+      computed = await this.computeRecommendations(normalizedParams, { signal, requestId });
+      this.logStage('engine.compute.done', requestId, { total: computed.data.length });
     } catch (error) {
       if (error instanceof RecommendationAbortedError) {
         throw error;
@@ -63,14 +68,17 @@ class RecommendationEngine {
       if (error instanceof GeminiClientError && error.code === 'CANCELLED') {
         throw new RecommendationAbortedError();
       }
+      this.logStage('engine.compute.error', requestId, { message: error.message });
       throw error;
     }
     this.ensureActive(signal);
+    this.logStage('engine.cache.store', requestId, { expiresInMs: this.cacheTtlMs });
     this.cache.set(cacheKey, {
       payload: computed,
       expiresAt: startedAt + this.cacheTtlMs,
     });
 
+    this.logStage('engine.finish', requestId, { cached: false });
     return this.decorateResult(computed, startedAt, false);
   }
 
@@ -161,7 +169,7 @@ class RecommendationEngine {
   }
 
   async computeRecommendations(params, options = {}) {
-    const { signal } = options || {};
+    const { signal, requestId } = options || {};
     this.ensureActive(signal);
     const normalizedCategory = this.normalizeCategory(params.storeCategory);
     const storeName = typeof params.storeName === 'string' ? params.storeName.trim() : '';
@@ -173,8 +181,9 @@ class RecommendationEngine {
       ownedCardIds,
       discover: params.discover,
       limit: params.limit,
-    });
+    }, { requestId });
     this.ensureActive(signal);
+    this.logStage('engine.candidates.resolved', requestId, { count: candidateCards.length });
 
     const cardMap = new Map(candidateCards.map((card) => [card.id, card]));
     const locationBenefits = fetchLocationPriorityBenefits(this.db, {
@@ -183,6 +192,7 @@ class RecommendationEngine {
       locationOnly: true,
       limit: Math.min(params.limit * 2, MAX_LIMIT * 2),
     });
+    this.logStage('engine.location.benefits', requestId, { count: locationBenefits.length });
 
     const locationByCardId = new Map();
     locationBenefits.forEach((benefit) => {
@@ -196,18 +206,22 @@ class RecommendationEngine {
       .filter((cardId) => !cardMap.has(cardId));
 
     if (missingLocationCardIds.length > 0) {
-      const hydrated = await this.hydrateCardsByIds(missingLocationCardIds);
+      this.logStage('engine.location.hydrate.start', requestId, { missing: missingLocationCardIds.length });
+      const hydrated = await this.hydrateCardsByIds(missingLocationCardIds, { requestId });
       this.ensureActive(signal);
       hydrated.forEach((card) => cardMap.set(card.id, card));
+      this.logStage('engine.location.hydrate.done', requestId, { hydrated: hydrated.length });
     }
 
     const orderedCardIds = this.buildInitialOrder({
       locationBenefits,
       candidateCards,
     });
+    this.logStage('engine.order.built', requestId, { total: orderedCardIds.length });
 
     if (orderedCardIds.length === 0) {
-      const fallbacks = await this.fetchCategoryFallbackCards(normalizedCategory, params.limit);
+      this.logStage('engine.order.empty', requestId);
+      const fallbacks = await this.fetchCategoryFallbackCards(normalizedCategory, params.limit, { requestId });
       this.ensureActive(signal);
       fallbacks.forEach((card) => {
         if (!cardMap.has(card.id)) {
@@ -225,10 +239,16 @@ class RecommendationEngine {
       locationByCardId,
       normalizedCategory,
       storeName,
-      discover: params.discover,
       storeCategory: params.storeCategory,
-    }, { signal });
+      discover: params.discover,
+    }, { signal, requestId });
     this.ensureActive(signal);
+    this.logStage('engine.score.complete', requestId, {
+      entries: scored.entries.length,
+      llm: scored.scoreSources.llm,
+      location: scored.scoreSources.location,
+      fallback: scored.scoreSources.fallback,
+    });
 
     const sorted = scored.entries.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -270,37 +290,60 @@ class RecommendationEngine {
     return order;
   }
 
-  async resolveCandidates({ normalizedCategory, ownedCardIds, discover, limit }) {
+  async resolveCandidates({ normalizedCategory, ownedCardIds, discover, limit }, options = {}) {
+    const { requestId } = options || {};
+    this.logStage('engine.candidates.start', requestId, {
+      discover,
+      ownedCardCount: ownedCardIds.length,
+      limit,
+      normalizedCategory,
+    });
+
     if (discover) {
-      return this.fetchDiscoverCandidates({ normalizedCategory, ownedCardIds, limit });
+      const cards = await this.fetchDiscoverCandidates({ normalizedCategory, ownedCardIds, limit }, { requestId });
+      this.logStage('engine.candidates.discover', requestId, { count: cards.length });
+      return cards;
     }
 
     if (ownedCardIds.length > 0) {
-      return this.hydrateCardsByIds(ownedCardIds);
+      const hydrated = await this.hydrateCardsByIds(ownedCardIds, { requestId });
+      this.logStage('engine.candidates.hydrated', requestId, { count: hydrated.length });
+      return hydrated;
     }
 
-    return this.fetchCategoryFallbackCards(normalizedCategory, limit);
+    const fallback = await this.fetchCategoryFallbackCards(normalizedCategory, limit, { requestId });
+    this.logStage('engine.candidates.fallback', requestId, { count: fallback.length });
+    return fallback;
   }
 
-  async fetchDiscoverCandidates({ normalizedCategory, ownedCardIds, limit }) {
+  async fetchDiscoverCandidates({ normalizedCategory, ownedCardIds, limit }, options = {}) {
+    const { requestId } = options || {};
+    this.logStage('engine.discover.start', requestId, { normalizedCategory, ownedCardCount: ownedCardIds.length });
     const ownedSet = new Set(ownedCardIds);
     const { cards } = fetchPaginatedCards(this.db, {
       normalizedCategory,
       limit: Math.min(limit * 2, MAX_LIMIT * 2),
     });
 
-    return cards.filter((card) => !ownedSet.has(card.id));
+    const filtered = cards.filter((card) => !ownedSet.has(card.id));
+    this.logStage('engine.discover.filtered', requestId, { total: cards.length, filtered: filtered.length });
+    return filtered;
   }
 
-  async fetchCategoryFallbackCards(normalizedCategory, limit) {
+  async fetchCategoryFallbackCards(normalizedCategory, limit, options = {}) {
+    const { requestId } = options || {};
+    this.logStage('engine.fallback.start', requestId, { normalizedCategory, limit });
     const { cards } = fetchPaginatedCards(this.db, {
       normalizedCategory,
       limit: Math.min(limit * 2, MAX_LIMIT * 2),
     });
+    this.logStage('engine.fallback.done', requestId, { count: cards.length });
     return cards;
   }
 
-  async hydrateCardsByIds(cardIds) {
+  async hydrateCardsByIds(cardIds, options = {}) {
+    const { requestId } = options || {};
+    this.logStage('engine.hydrate.start', requestId, { requested: cardIds.length });
     const seen = new Set();
     const uniqueIds = [];
     cardIds.forEach((id) => {
@@ -311,6 +354,7 @@ class RecommendationEngine {
       uniqueIds.push(id);
     });
     if (uniqueIds.length === 0) {
+      this.logStage('engine.hydrate.skip', requestId, { reason: 'no_unique_ids' });
       return [];
     }
 
@@ -325,6 +369,7 @@ class RecommendationEngine {
       .all(params);
 
     if (cards.length === 0) {
+      this.logStage('engine.hydrate.empty', requestId, { uniqueIds: uniqueIds.length });
       return [];
     }
 
@@ -347,7 +392,7 @@ class RecommendationEngine {
 
     const cardMap = new Map(cards.map((card) => [card.id, card]));
 
-    return uniqueIds
+    const result = uniqueIds
       .map((id) => {
         const card = cardMap.get(id);
         if (!card) return null;
@@ -359,6 +404,8 @@ class RecommendationEngine {
         };
       })
       .filter(Boolean);
+    this.logStage('engine.hydrate.done', requestId, { returned: result.length });
+    return result;
   }
 
   sourcePriority(source) {
@@ -381,7 +428,8 @@ class RecommendationEngine {
     storeCategory,
     discover,
   }, options = {}) {
-    const { signal } = options || {};
+    const { signal, requestId } = options || {};
+    this.logStage('engine.score.start', requestId, { ordered: orderedCardIds.length });
     const scoreSources = { location: 0, llm: 0, fallback: 0 };
     const entries = [];
     let llmSuppressed = false;
@@ -440,7 +488,11 @@ class RecommendationEngine {
           } else if (['NETWORK', 'TIMEOUT', 'CONFIGURATION'].includes(error.code)) {
             if (!llmSuppressed) {
               llmSuppressed = true;
-              this.logger?.info?.('Gemini scoring disabled for current request', { code: error.code });
+              const logPayload = { code: error.code };
+              if (requestId) {
+                logPayload.requestId = requestId;
+              }
+              this.logger?.info?.('Gemini scoring disabled for current request', logPayload);
             }
           }
         }
@@ -455,7 +507,7 @@ class RecommendationEngine {
       entries.push(fallback);
       scoreSources.fallback += 1;
     }
-
+    this.logStage('engine.score.finish', requestId, { entries: entries.length });
     return { entries, scoreSources };
   }
 
@@ -492,6 +544,24 @@ class RecommendationEngine {
   ensureActive(signal) {
     if (signal?.aborted) {
       throw new RecommendationAbortedError();
+    }
+  }
+
+  logStage(stage, requestId, extra = {}) {
+    if (!this.logger) {
+      return;
+    }
+    const payload = requestId ? { requestId, ...extra } : extra;
+    if (typeof this.logger.debug === 'function') {
+      this.logger.debug(`[recommendations] ${stage}`, payload);
+      return;
+    }
+    if (typeof this.logger.info === 'function') {
+      this.logger.info(`[recommendations] ${stage}`, payload);
+      return;
+    }
+    if (typeof this.logger.log === 'function') {
+      this.logger.log('[recommendations]', stage, payload);
     }
   }
 }

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import java.util.Locale
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -46,6 +47,7 @@ class RecommendationViewModel(
     private var latestOwnedCardIds: Set<Int> = emptySet()
     private var lastContext: RecommendationRequestContext? = null
     private var fetchJob: Job? = null
+    private var pendingOwnedCardsRefresh: Boolean = false
 
     init {
         viewModelScope.launch {
@@ -57,7 +59,11 @@ class RecommendationViewModel(
                 latestOwnedCardIds = ids
                 _uiState.update { it.copy(ownedCardIds = ids) }
                 lastContext?.let { context ->
-                    fetchRecommendations(context)
+                    if (fetchJob?.isActive == true) {
+                        pendingOwnedCardsRefresh = true
+                    } else {
+                        fetchRecommendations(context)
+                    }
                 }
             }
         }
@@ -103,8 +109,9 @@ class RecommendationViewModel(
     }
 
     private fun fetchRecommendations(context: RecommendationRequestContext) {
+        pendingOwnedCardsRefresh = false
         fetchJob?.cancel()
-        fetchJob = viewModelScope.launch {
+        val job = viewModelScope.launch {
             _uiState.update { current ->
                 current.copy(
                     selectedStore = context.store,
@@ -133,6 +140,15 @@ class RecommendationViewModel(
                 }
             }
         }
+        job.invokeOnCompletion { cause ->
+            if (pendingOwnedCardsRefresh && cause !is CancellationException) {
+                pendingOwnedCardsRefresh = false
+                lastContext?.let { pendingContext ->
+                    fetchRecommendations(pendingContext)
+                }
+            }
+        }
+        fetchJob = job
     }
 
     private fun handleSuccess(context: RecommendationRequestContext, result: RecommendationResult) {

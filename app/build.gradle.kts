@@ -9,6 +9,9 @@ plugins {
 val mapsApiKey: String = gradleLocalProperties(rootDir, providers)
     .getProperty("GOOGLE_MAPS_API_KEY", "")
 
+val localBackendUrl: String = gradleLocalProperties(rootDir, providers)
+    .getProperty("LOCAL_BACKEND_URL", "http://10.0.2.2:3000/")
+
 android {
     namespace = "teamcherrypicker.com"
     compileSdk = 36
@@ -24,6 +27,12 @@ android {
 
         manifestPlaceholders += mapOf(
             "GOOGLE_MAPS_API_KEY" to mapsApiKey
+        )
+
+        buildConfigField(
+            "String",
+            "API_BASE_URL",
+            "\"${localBackendUrl.replace("\"", "\\\"")}\""
         )
     }
 
@@ -45,6 +54,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         unitTests.isReturnDefaultValues = true

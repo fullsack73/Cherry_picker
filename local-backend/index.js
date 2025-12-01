@@ -286,32 +286,45 @@ app.get('/api/stores/search', (req, res) => {
 });
 
 app.post('/api/recommendations', async (req, res) => {
+  const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const inboundLog = {
+    requestId,
+    ip: req.headers['x-forwarded-for'] || req.ip,
+    bodyKeys: Object.keys(req.body || {}),
+  };
+  console.log('[recommendations] inbound', inboundLog);
+
   const validation = validateRecommendationPayload(req.body);
   if (!validation.ok) {
+    console.warn('[recommendations] validation failed', { requestId, code: validation.code });
     return sendError(res, 400, validation.code, validation.message);
   }
 
   const controller = new AbortController();
-  const handleAbort = () => {
+  const handleAbort = (source) => {
+    console.warn('[recommendations] request.signal.abort', { requestId, source });
     if (!controller.signal.aborted) {
       controller.abort();
     }
   };
-  req.on('aborted', handleAbort);
-  req.on('close', handleAbort);
+  const abortListener = () => handleAbort('aborted');
+  req.on('aborted', abortListener);
 
   const removeListener = (req.off?.bind(req)) || req.removeListener.bind(req);
   const cleanup = () => {
-    removeListener('aborted', handleAbort);
-    removeListener('close', handleAbort);
+    removeListener('aborted', abortListener);
   };
 
   try {
-    const result = await recommendationEngine.getRecommendations(validation.value, { signal: controller.signal });
+    const result = await recommendationEngine.getRecommendations(validation.value, {
+      signal: controller.signal,
+      requestId,
+    });
     if (controller.signal.aborted) {
       cleanup();
       return;
     }
+    console.log('[recommendations] success', { requestId, cached: result?.meta?.cached, total: result?.meta?.total });
     res.set({
       'X-RateLimit-Limit': '60',
       'X-RateLimit-Remaining': '59',
@@ -322,6 +335,7 @@ app.post('/api/recommendations', async (req, res) => {
   } catch (error) {
     cleanup();
     if (controller.signal.aborted || error instanceof RecommendationAbortedError) {
+      console.warn('[recommendations] aborted', { requestId });
       return;
     }
     console.error('Failed to generate recommendations:', error);
