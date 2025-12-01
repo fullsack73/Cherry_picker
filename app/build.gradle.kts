@@ -93,6 +93,7 @@ dependencies {
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
     implementation("androidx.compose.material3:material3-window-size-class:1.1.2")
     implementation("com.google.maps.android:android-maps-utils:3.8.2")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation("androidx.navigation:navigation-testing:2.7.5")

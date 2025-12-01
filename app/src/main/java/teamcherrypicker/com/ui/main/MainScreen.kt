@@ -26,11 +26,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -72,6 +75,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,9 +100,9 @@ import com.google.maps.android.compose.MarkerState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import teamcherrypicker.com.R
 import teamcherrypicker.com.Screen
-import teamcherrypicker.com.data.CardBenefit
-import teamcherrypicker.com.data.CardSummary
-import teamcherrypicker.com.data.CardsMeta
+import teamcherrypicker.com.data.OwnedCardsStore
+import teamcherrypicker.com.data.RecommendationCard
+import teamcherrypicker.com.data.RecommendationScoreSource
 import teamcherrypicker.com.data.Store
 import teamcherrypicker.com.location.LocationPermissionStatus
 import teamcherrypicker.com.location.LocationUiState
@@ -119,16 +124,19 @@ fun MainScreen(
     locationUiStateFlow: StateFlow<LocationUiState>,
     cardsViewModel: CardsViewModel = viewModel(factory = CardsViewModel.provideFactory())
 ) {
-    val cardsUiState by cardsViewModel.uiState.collectAsState()
-    val benefitsState by cardsViewModel.benefitsState.collectAsState()
     val storesUiState by cardsViewModel.storesUiState.collectAsState()
     val locationUiState by locationUiStateFlow.collectAsState()
     val storeSearchState by cardsViewModel.storeSearchState.collectAsState()
+    val context = LocalContext.current
+    val ownedCardsStore = remember { OwnedCardsStore.from(context) }
+    val recommendationViewModel: RecommendationViewModel = viewModel(
+        factory = RecommendationViewModel.provideFactory(ownedCardsStore = ownedCardsStore)
+    )
+    val recommendationUiState by recommendationViewModel.uiState.collectAsState()
 
     val bottomSheetState = rememberModalBottomSheetState()
     val scaffoldState = rememberBottomSheetScaffoldState(bottomSheetState = bottomSheetState)
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
 
     val mapUiSettings = remember {
         MapUiSettings(
@@ -174,9 +182,16 @@ fun MainScreen(
     var showSearchHereButton by remember { mutableStateOf(false) }
 
     var selectedStore by remember { mutableStateOf<Store?>(null) }
-    var selectedCardId by remember { mutableStateOf<Int?>(null) }
     var clusterPreviewStores by remember { mutableStateOf<List<Store>>(emptyList()) }
     var appliedSearchStoreId by remember { mutableStateOf<Int?>(null) }
+
+    fun handleStoreSelection(store: Store) {
+        val isSameStore = selectedStore?.id == store.id
+        selectedStore = store
+        if (!isSameStore) {
+            recommendationViewModel.onStoreSelected(store)
+        }
+    }
 
     val hasActiveStoreSearch = storeSearchState.results.isNotEmpty()
     val displayedStores = if (hasActiveStoreSearch) {
@@ -185,20 +200,10 @@ fun MainScreen(
         storesUiState.stores
     }
 
-    LaunchedEffect(cardsUiState.cards) {
-        if (cardsUiState.cards.isEmpty()) {
-            selectedCardId = null
-        } else if (selectedCardId == null || cardsUiState.cards.none { it.id == selectedCardId }) {
-            val firstCard = cardsUiState.cards.firstOrNull()
-            if (firstCard != null) {
-                selectedCardId = firstCard.id
-                cardsViewModel.selectCard(firstCard.id)
-            }
-        }
-    }
-
     // Use conditional peek height to hide sheet when no selection
-    val effectivePeek = if (selectedStore != null && (cardsUiState.isLoading || cardsUiState.cards.isNotEmpty())) 280.dp else 0.dp
+    val shouldShowSheet = selectedStore != null &&
+        (recommendationUiState.isLoading || recommendationUiState.cards.isNotEmpty() || recommendationUiState.errorMessage != null)
+    val effectivePeek = if (shouldShowSheet) 320.dp else 0.dp
 
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LocationUiState.DEFAULT_FALLBACK_LOCATION, 12f)
@@ -297,7 +302,7 @@ fun MainScreen(
         val target = LatLng(store.latitude, store.longitude)
         val update = CameraUpdateFactory.newLatLngZoom(target, 16f)
         cameraPositionState.animate(update)
-        selectedStore = store
+        handleStoreSelection(store)
         lastSearchedLocation = target
         cardsViewModel.loadStores(
             target.latitude,
@@ -313,24 +318,23 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(selectedStore?.id) {
+        if (selectedStore == null) {
+            recommendationViewModel.clearSelection()
+        }
+    }
+
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         sheetContent = {
             if (selectedStore != null) {
                 RecommendationSheetContent(
-                    cards = cardsUiState.cards,
-                    meta = cardsUiState.meta,
-                    selectedTitle = selectedStore!!.name,
-                    selectedCardId = selectedCardId,
-                    onSelectCard = { card ->
-                        selectedCardId = card.id
-                        cardsViewModel.selectCard(card.id)
-                    },
-                    benefitsState = benefitsState,
-                    isLoading = cardsUiState.isLoading,
-                    errorMessage = cardsUiState.errorMessage,
-                    onRetry = { cardsViewModel.loadCards() }
+                    storeName = selectedStore!!.name,
+                    uiState = recommendationUiState,
+                    onRetry = { recommendationViewModel.retry() },
+                    onDiscover = { recommendationViewModel.showDiscoverRecommendations() },
+                    onShowOwned = { recommendationViewModel.showOwnedRecommendations() }
                 )
             } else {
                 // Completely empty content when no marker selected
@@ -436,7 +440,7 @@ fun MainScreen(
                     onClusterItemClick = { item ->
                         Log.d("MapDebug", "Cluster marker tapped id=${item.store.id} name=${item.store.name}")
                         clusterPreviewStores = emptyList()
-                        selectedStore = item.store
+                        handleStoreSelection(item.store)
                         true
                     },
                     clusterItemContent = { item ->
@@ -458,7 +462,7 @@ fun MainScreen(
                 ClusterPreviewCard(
                     stores = clusterPreviewStores,
                     onStoreSelected = { store ->
-                        selectedStore = store
+                        handleStoreSelection(store)
                         clusterPreviewStores = emptyList()
                     },
                     onDismiss = { clusterPreviewStores = emptyList() }
@@ -1094,22 +1098,20 @@ fun FloatingSearchBar(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RecommendationSheetContent(
-    cards: List<CardSummary>,
-    meta: CardsMeta?,
-    selectedTitle: String,
-    selectedCardId: Int?,
-    onSelectCard: (CardSummary) -> Unit,
-    benefitsState: BenefitsUiState,
-    isLoading: Boolean,
-    errorMessage: String?,
-    onRetry: () -> Unit
+    storeName: String,
+    uiState: RecommendationUiState,
+    onRetry: () -> Unit,
+    onDiscover: () -> Unit,
+    onShowOwned: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .navigationBarsPadding()
     ) {
         Box(
             modifier = Modifier
@@ -1119,162 +1121,257 @@ fun RecommendationSheetContent(
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                 .align(Alignment.CenterHorizontally)
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            "Recommendations for $selectedTitle",
+            text = "Recommendations for $storeName",
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
+            fontWeight = FontWeight.Bold
         )
 
-        meta?.let {
+        uiState.meta?.let { meta ->
             Text(
                 text = buildString {
-                    append("Last refreshed: ")
-                    append(it.lastRefreshedAt ?: "Unknown")
-                    if (!it.dataSource.isNullOrBlank()) {
-                        append(" • Source: ")
-                        append(it.dataSource)
-                    }
+                    append(if (meta.discover) "Discover mode" else "My cards")
+                    append(" • ${meta.total} suggestions")
+                    meta.latencyMs?.let { append(" • ${it}ms") }
+                    if (meta.cached) append(" • cached")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
 
-        when {
-            isLoading -> {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+        if (uiState.ownedCardIds.isEmpty() && !uiState.discoverMode) {
+            Text(
+                text = "Add cards in Manage Cards to personalize these results.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .testTag("ownedCardsInfo")
+            )
+        }
+
+        uiState.fallbackBannerMessage?.let { message ->
+            RecommendationFallbackBanner(message)
+        }
+
+        if (uiState.errorMessage != null && uiState.cards.isNotEmpty()) {
+            Text(
+                text = uiState.errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+
+        if (uiState.isLoading && uiState.cards.isNotEmpty()) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            )
+        }
+
+        if (uiState.cards.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .testTag("recommendationsList"),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                items(uiState.cards, key = { it.cardId }) { card ->
+                    RecommendationCardRow(card)
                 }
             }
-
-            errorMessage != null -> {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = errorMessage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    )
-                    Button(onClick = onRetry) {
-                        Text("Retry")
-                    }
-                }
-            }
-
-            cards.isEmpty() -> {
-                Text(
-                    text = "No cards available yet. Try refreshing soon.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            else -> {
-                cards.forEach { card ->
-                    CardSummaryItem(
-                        card = card,
-                        isSelected = card.id == selectedCardId,
-                        onClick = { onSelectCard(card) }
-                    )
-                }
-
-                Divider(modifier = Modifier.padding(vertical = 12.dp))
-
-                val isLoadingBenefits = benefitsState.isLoading && benefitsState.cardId == selectedCardId
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = true),
+                contentAlignment = Alignment.Center
+            ) {
                 when {
-                    selectedCardId == null -> {
-                        Text(
-                            text = "Select a card to view benefits",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    uiState.isLoading -> {
+                        CircularProgressIndicator()
                     }
 
-                    isLoadingBenefits -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator()
+                    uiState.errorMessage != null -> {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = uiState.errorMessage,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            Button(onClick = onRetry) {
+                                Text("Retry")
+                            }
                         }
                     }
 
-                    benefitsState.errorMessage != null && benefitsState.cardId == selectedCardId -> {
-                        Text(
-                            text = benefitsState.errorMessage,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-
-                    benefitsState.benefits.isEmpty() -> {
-                        Text(
-                            text = "No benefits found for this card.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
                     else -> {
-                        BenefitsList(benefits = benefitsState.benefits)
+                        Text(
+                            text = "No recommendations yet. Try Discover to explore more cards.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        RecommendationSheetActions(
+            discoverMode = uiState.discoverMode,
+            buttonEnabled = uiState.selectedStore != null && !uiState.isLoading && !uiState.discoverInFlight,
+            onDiscover = onDiscover,
+            onShowOwned = onShowOwned
+        )
+    }
+}
+
+@Composable
+private fun RecommendationSheetActions(
+    discoverMode: Boolean,
+    buttonEnabled: Boolean,
+    onDiscover: () -> Unit,
+    onShowOwned: () -> Unit
+) {
+    val buttonLabel = if (discoverMode) "Back to my cards" else "Discover cards you don't own"
+    val contentDescription = if (discoverMode) "Show saved cards" else "Discover cards you don't own"
+    Button(
+        onClick = if (discoverMode) onShowOwned else onDiscover,
+        enabled = buttonEnabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .testTag("discoverButton")
+            .semantics { this.contentDescription = contentDescription }
+    ) {
+        Text(buttonLabel, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun RecommendationFallbackBanner(message: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp)
+            .testTag("fallbackBanner")
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(Icons.Default.Info, contentDescription = null)
+            Text(message, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun CardSummaryItem(card: CardSummary, isSelected: Boolean, onClick: () -> Unit) {
-    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    val background = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.06f) else MaterialTheme.colorScheme.surface
-
+private fun RecommendationCardRow(card: RecommendationCard) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = background),
-        border = BorderStroke(width = 1.dp, color = borderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(card.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(card.issuer, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(card.cardName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(card.issuer, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                ScoreBadge(card.score)
+            }
+
             if (card.normalizedCategories.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     card.normalizedCategories.forEach { category ->
-                        AssistChip(onClick = { onClick() }, label = { Text(category.toCategoryLabel()) })
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ) {
+                            Text(
+                                text = category.toCategoryLabel(),
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
+            }
+
+            ScoreSourceBadge(card.scoreSource)
+
+            card.rationale?.takeIf { it.isNotBlank() }?.let { rationale ->
+                Text(
+                    text = rationale,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
 @Composable
-fun BenefitsList(benefits: List<CardBenefit>) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        benefits.forEach { benefit ->
-            Column {
-                Text(
-                    text = benefit.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = benefit.normalizedCategory.toCategoryLabel(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+private fun ScoreBadge(score: Int) {
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        shape = CircleShape
+    ) {
+        Text(
+            text = score.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun ScoreSourceBadge(source: RecommendationScoreSource) {
+    val (background, content) = rememberScoreSourceColors(source)
+    val label = when (source) {
+        RecommendationScoreSource.LOCATION -> "Location match"
+        RecommendationScoreSource.LLM -> "LLM confidence"
+        RecommendationScoreSource.FALLBACK -> "Heuristic"
+    }
+    Surface(
+        color = background,
+        contentColor = content,
+        shape = RoundedCornerShape(50)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun rememberScoreSourceColors(source: RecommendationScoreSource): Pair<Color, Color> {
+    val scheme = MaterialTheme.colorScheme
+    return when (source) {
+        RecommendationScoreSource.LOCATION -> scheme.surfaceTint.copy(alpha = 0.12f) to scheme.primary
+        RecommendationScoreSource.LLM -> scheme.secondaryContainer to scheme.onSecondaryContainer
+        RecommendationScoreSource.FALLBACK -> scheme.outlineVariant to scheme.onSurface
     }
 }

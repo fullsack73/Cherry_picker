@@ -37,4 +37,9 @@ interface ApiService {
         @Query("query") query: String,
         @Query("limit") limit: Int? = null
     ): StoresResponse
+
+    @POST("/api/recommendations")
+    suspend fun getRecommendations(
+        @Body request: RecommendationRequestDto
+    ): RecommendationsResponse
 }

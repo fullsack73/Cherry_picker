@@ -1,0 +1,7 @@
+card_id,card_name,merchant_name,category,benefit_summary,conditions,limit_info,is_location_based
+1,추천카드 ALPHA,테스트식당,외식,외식 혜택 A,조건,한도,True
+1,추천카드 ALPHA,테스트브런치,외식,외식 혜택 B,조건,한도,False
+2,추천카드 BETA,테스트식당,외식,외식 혜택 C,조건,한도,YES
+3,추천카드 GAMMA,테스트마켓,쇼핑,쇼핑 혜택 D,조건,한도,0
+4,추천카드 DELTA,도시락하우스,외식,외식 혜택 E,조건,한도,
+5,추천카드 EPSILON,테스트카페,카페/음료,카페 혜택 F,조건,한도,1

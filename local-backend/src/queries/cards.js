@@ -121,13 +121,79 @@ function fetchPaginatedCards(db, { limit, offset, normalizedCategory } = {}) {
 function fetchCardBenefits(db, cardId) {
   requireDb(db);
   const benefitsStatement = db.prepare(`
-    SELECT id, card_id, description, keyword, source_category, normalized_category
+    SELECT id, card_id, description, keyword, source_category, normalized_category, is_location_based
     FROM card_benefits
     WHERE card_id = ?
     ORDER BY normalized_category ASC, id ASC
   `);
 
   return benefitsStatement.all(cardId);
+}
+
+function sanitizeKeywords(keywords) {
+  if (!Array.isArray(keywords)) {
+    return [];
+  }
+
+  return keywords
+    .map((keyword) => (typeof keyword === 'string' ? keyword.trim().toLowerCase() : ''))
+    .filter((keyword) => keyword.length > 0);
+}
+
+function fetchLocationPriorityBenefits(
+  db,
+  { normalizedCategory, keywords = [], limit, locationOnly = false } = {}
+) {
+  requireDb(db);
+
+  const resolvedLimit = normalizeLimit(limit);
+  const sanitizedKeywords = sanitizeKeywords(keywords);
+  const filters = [];
+  const params = { limit: resolvedLimit };
+
+  if (normalizedCategory) {
+    filters.push('cb.normalized_category = @normalizedCategory');
+    params.normalizedCategory = normalizedCategory;
+  }
+
+  if (locationOnly) {
+    filters.push('cb.is_location_based = 1');
+  }
+
+  if (sanitizedKeywords.length > 0) {
+    sanitizedKeywords.forEach((keyword, index) => {
+      params[`keyword${index}`] = keyword;
+    });
+    const keywordPlaceholders = sanitizedKeywords.map((_, index) => `@keyword${index}`).join(', ');
+    filters.push(`LOWER(cb.keyword) IN (${keywordPlaceholders})`);
+  }
+
+  const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+
+  const statement = db.prepare(`
+    SELECT
+      cb.card_id AS card_id,
+      cards.name AS card_name,
+      cb.description,
+      cb.keyword,
+      cb.normalized_category,
+      cb.is_location_based
+    FROM card_benefits cb
+    JOIN cards ON cards.id = cb.card_id
+    ${whereClause}
+    ORDER BY cb.is_location_based DESC, cards.name COLLATE NOCASE ASC, cb.id ASC
+    LIMIT @limit
+  `);
+
+  const rows = statement.all(params);
+  return rows.map((row) => ({
+    cardId: row.card_id,
+    cardName: row.card_name,
+    description: row.description,
+    keyword: row.keyword,
+    normalizedCategory: row.normalized_category,
+    isLocationBased: Boolean(row.is_location_based),
+  }));
 }
 
 function fetchLatestRefreshMetadata(db) {
@@ -158,6 +224,7 @@ module.exports = {
   fetchPaginatedCards,
   fetchCardBenefits,
   fetchLatestRefreshMetadata,
+  fetchLocationPriorityBenefits,
   DEFAULT_LIMIT,
   MAX_LIMIT,
 };

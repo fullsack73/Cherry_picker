@@ -13,7 +13,13 @@ import teamcherrypicker.com.api.ApiService
 import teamcherrypicker.com.api.CardBenefitsResponse
 import teamcherrypicker.com.api.CardsMetaDto
 import teamcherrypicker.com.api.CardsResponse
+import teamcherrypicker.com.api.RecommendationMetaDto
+import teamcherrypicker.com.api.RecommendationRequestDto
+import teamcherrypicker.com.api.RecommendationsResponse
+import teamcherrypicker.com.api.ScoreSourcesDto
+import teamcherrypicker.com.api.StoresResponse
 import teamcherrypicker.com.data.CardsRepository
+import teamcherrypicker.com.data.StoreRepository
 import teamcherrypicker.com.data.UserLocation
 import teamcherrypicker.com.location.LocationPermissionStatus
 import teamcherrypicker.com.location.LocationUiState
@@ -42,10 +48,34 @@ class LocationPermissionTest {
         override suspend fun getCardBenefits(cardId: Int): CardBenefitsResponse {
             return CardBenefitsResponse(data = emptyList())
         }
+
+        override suspend fun getNearbyStores(
+            latitude: Double,
+            longitude: Double,
+            radius: Int?,
+            categories: String?
+        ): StoresResponse = StoresResponse(data = emptyList())
+
+        override suspend fun searchStores(query: String, limit: Int?): StoresResponse = StoresResponse(data = emptyList())
+
+        override suspend fun getRecommendations(request: RecommendationRequestDto): RecommendationsResponse {
+            return RecommendationsResponse(
+                data = emptyList(),
+                meta = RecommendationMetaDto(
+                    total = 0,
+                    limit = request.limit,
+                    storeId = request.storeId,
+                    discover = request.discover,
+                    latencyMs = 0,
+                    cached = false,
+                    scoreSources = ScoreSourcesDto()
+                )
+            )
+        }
     }
 
     private val cardsRepository = CardsRepository(fakeApiService)
-    private val cardsViewModel = CardsViewModel(cardsRepository)
+    private val cardsViewModel = CardsViewModel(cardsRepository, StoreRepository(fakeApiService))
 
     @Test
     fun permissionDenied_showsBannerAndMap() {

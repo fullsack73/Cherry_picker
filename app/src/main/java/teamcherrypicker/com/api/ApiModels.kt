@@ -50,3 +50,44 @@ data class StoreDto(
     @SerializedName("normalized_category") val normalizedCategory: String?,
     @SerializedName("distance") val distance: Double?
 )
+
+data class RecommendationRequestDto(
+    @SerializedName("storeId") val storeId: Int,
+    @SerializedName("storeName") val storeName: String,
+    @SerializedName("storeCategory") val storeCategory: String,
+    @SerializedName("ownedCardIds") val ownedCardIds: List<Int>,
+    @SerializedName("discover") val discover: Boolean,
+    @SerializedName("locationKeywords") val locationKeywords: List<String> = emptyList(),
+    @SerializedName("limit") val limit: Int = 10
+)
+
+data class RecommendationsResponse(
+    @SerializedName("data") val data: List<RecommendationCardDto>,
+    @SerializedName("meta") val meta: RecommendationMetaDto
+)
+
+data class RecommendationCardDto(
+    @SerializedName("cardId") val cardId: Int,
+    @SerializedName("cardName") val cardName: String,
+    @SerializedName("issuer") val issuer: String,
+    @SerializedName("normalizedCategories") val normalizedCategories: List<String>,
+    @SerializedName("score") val score: Int,
+    @SerializedName("scoreSource") val scoreSource: String,
+    @SerializedName("rationale") val rationale: String?
+)
+
+data class RecommendationMetaDto(
+    @SerializedName("total") val total: Int,
+    @SerializedName("limit") val limit: Int,
+    @SerializedName("storeId") val storeId: Int?,
+    @SerializedName("discover") val discover: Boolean,
+    @SerializedName("latencyMs") val latencyMs: Long?,
+    @SerializedName("cached") val cached: Boolean,
+    @SerializedName("scoreSources") val scoreSources: ScoreSourcesDto?
+)
+
+data class ScoreSourcesDto(
+    @SerializedName("location") val location: Int = 0,
+    @SerializedName("llm") val llm: Int = 0,
+    @SerializedName("fallback") val fallback: Int = 0
+)

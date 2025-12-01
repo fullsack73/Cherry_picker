@@ -11,6 +11,8 @@ const {
   fetchLatestRefreshMetadata,
 } = require('./src/queries/cards');
 const { fetchNearbyStores, searchStoresByKeyword } = require('./src/queries/stores');
+const { RecommendationEngine, DEFAULT_LIMIT, MAX_LIMIT } = require('./src/recommendations/recommendationEngine');
+const { GeminiClient } = require('./src/recommendations/geminiClient');
 
 const app = express();
 const port = 3000;
@@ -34,6 +36,9 @@ const bootstrapPromise = (shouldBootstrapData ? loadData({ db }) : Promise.resol
   }
 });
 
+const geminiClient = new GeminiClient();
+const recommendationEngine = new RecommendationEngine({ db, geminiClient });
+
 const stores = [
   { id: 1, name: 'Store A', latitude: 34.0522, longitude: -118.2437 },
   { id: 2, name: 'Store B', latitude: 34.0525, longitude: -118.2440 },
@@ -56,6 +61,70 @@ function parseNonNegativeInteger(value) {
   }
 
   return { ok: true, value: parsed };
+}
+
+function validateRecommendationPayload(body) {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, code: 'INVALID_PAYLOAD', message: 'Request body must be a JSON object' };
+  }
+
+  const storeId = Number(body.storeId);
+  if (!Number.isInteger(storeId) || storeId <= 0) {
+    return { ok: false, code: 'INVALID_STORE_ID', message: 'storeId must be a positive integer' };
+  }
+
+  const storeName = typeof body.storeName === 'string' ? body.storeName.trim() : '';
+  if (!storeName) {
+    return { ok: false, code: 'INVALID_STORE_NAME', message: 'storeName is required' };
+  }
+
+  const storeCategory = typeof body.storeCategory === 'string' ? body.storeCategory.trim() : '';
+  if (!storeCategory) {
+    return { ok: false, code: 'INVALID_STORE_CATEGORY', message: 'storeCategory is required' };
+  }
+
+  if (body.discover !== undefined && typeof body.discover !== 'boolean') {
+    return { ok: false, code: 'INVALID_DISCOVER_FLAG', message: 'discover must be a boolean value' };
+  }
+
+  let limit = DEFAULT_LIMIT;
+  if (body.limit !== undefined) {
+    const parsedLimit = Number(body.limit);
+    if (!Number.isInteger(parsedLimit) || parsedLimit <= 0) {
+      return { ok: false, code: 'INVALID_LIMIT', message: 'limit must be a positive integer' };
+    }
+    limit = Math.min(parsedLimit, MAX_LIMIT);
+  }
+
+  let ownedCardIds = [];
+  if (body.ownedCardIds !== undefined) {
+    if (!Array.isArray(body.ownedCardIds)) {
+      return { ok: false, code: 'INVALID_OWNED_CARDS', message: 'ownedCardIds must be an array of integers' };
+    }
+    ownedCardIds = body.ownedCardIds.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0);
+    if (body.ownedCardIds.length > 0 && ownedCardIds.length === 0) {
+      return { ok: false, code: 'INVALID_OWNED_CARDS', message: 'ownedCardIds must contain positive integers' };
+    }
+  }
+
+  const locationKeywords = Array.isArray(body.locationKeywords)
+    ? body.locationKeywords
+        .map((keyword) => (typeof keyword === 'string' ? keyword.trim() : ''))
+        .filter((keyword) => keyword.length > 0)
+    : [];
+
+  return {
+    ok: true,
+    value: {
+      storeId,
+      storeName,
+      storeCategory,
+      ownedCardIds,
+      discover: Boolean(body.discover),
+      locationKeywords,
+      limit,
+    },
+  };
 }
 
 app.post('/api/location', (req, res) => {
@@ -210,6 +279,26 @@ app.get('/api/stores/search', (req, res) => {
   }
 });
 
+app.post('/api/recommendations', async (req, res) => {
+  const validation = validateRecommendationPayload(req.body);
+  if (!validation.ok) {
+    return sendError(res, 400, validation.code, validation.message);
+  }
+
+  try {
+    const result = await recommendationEngine.getRecommendations(validation.value);
+    res.set({
+      'X-RateLimit-Limit': '60',
+      'X-RateLimit-Remaining': '59',
+      'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 60),
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error('Failed to generate recommendations:', error);
+    return sendError(res, 500, 'RECOMMENDATION_FAILED', 'Unable to generate recommendations at this time');
+  }
+});
+
 if (process.env.NODE_ENV !== 'test') {
   bootstrapPromise.then(() => {
     app.listen(port, () => {
@@ -221,5 +310,6 @@ if (process.env.NODE_ENV !== 'test') {
 module.exports = app;
 module.exports.db = db;
 module.exports.bootstrapPromise = bootstrapPromise;
+module.exports.recommendationEngine = recommendationEngine;
 
 

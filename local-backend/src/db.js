@@ -22,9 +22,16 @@ CREATE TABLE IF NOT EXISTS card_benefits (
   keyword TEXT,
   source_category TEXT NOT NULL,
   normalized_category TEXT NOT NULL,
+  is_location_based INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_card_benefits_card_location
+  ON card_benefits (card_id, is_location_based);
+
+CREATE INDEX IF NOT EXISTS idx_card_benefits_category_location
+  ON card_benefits (normalized_category, is_location_based);
 
 CREATE TABLE IF NOT EXISTS merchants (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +83,28 @@ function createDatabase(dbPath = DEFAULT_DB_PATH) {
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.exec(schemaStatements);
+  ensureLocationBasedSchema(db);
   return db;
+}
+
+function ensureLocationBasedSchema(db) {
+  const hasColumn = db
+    .prepare("SELECT 1 FROM pragma_table_info('card_benefits') WHERE name = 'is_location_based' LIMIT 1")
+    .get();
+
+  if (!hasColumn) {
+    db.exec('ALTER TABLE card_benefits ADD COLUMN is_location_based INTEGER NOT NULL DEFAULT 0');
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_card_benefits_card_location
+    ON card_benefits (card_id, is_location_based)
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_card_benefits_category_location
+    ON card_benefits (normalized_category, is_location_based)
+  `);
 }
 
 module.exports = {

@@ -28,6 +28,10 @@ import teamcherrypicker.com.api.CardBenefitsResponse
 import teamcherrypicker.com.api.CardDto
 import teamcherrypicker.com.api.CardsMetaDto
 import teamcherrypicker.com.api.CardsResponse
+import teamcherrypicker.com.api.RecommendationMetaDto
+import teamcherrypicker.com.api.RecommendationRequestDto
+import teamcherrypicker.com.api.RecommendationsResponse
+import teamcherrypicker.com.api.ScoreSourcesDto
 import teamcherrypicker.com.api.StoreDto
 import teamcherrypicker.com.api.StoresResponse
 import teamcherrypicker.com.data.CardsRepository
@@ -162,6 +166,16 @@ class MainScreenTest {
                 StoreDto(1, "Test Store", null, null, 1.35, 103.87, "Food", "DINING", 10.0)
             ))
         }
+
+        override suspend fun searchStores(query: String, limit: Int?): StoresResponse {
+            lastCategories = null
+            return StoresResponse(data = emptyList())
+        }
+
+        override suspend fun getRecommendations(request: RecommendationRequestDto): RecommendationsResponse {
+            return emptyRecommendations(request)
+        }
+
     }
 
     private fun createTestCardsViewModel(): CardsViewModel {
@@ -196,6 +210,14 @@ class MainScreenTest {
                     StoreDto(1, "Test Store", null, null, 1.35, 103.87, "Food", "DINING", 10.0)
                 ))
             }
+
+            override suspend fun searchStores(query: String, limit: Int?): StoresResponse {
+                return StoresResponse(data = emptyList())
+            }
+
+            override suspend fun getRecommendations(request: RecommendationRequestDto): RecommendationsResponse {
+                return emptyRecommendations(request)
+            }
         }
 
         return CardsViewModel(CardsRepository(fakeApiService), StoreRepository(fakeApiService))
@@ -209,4 +231,19 @@ class MainScreenTest {
                 }
             )
         }
+}
+
+private fun emptyRecommendations(request: RecommendationRequestDto): RecommendationsResponse {
+    return RecommendationsResponse(
+        data = emptyList(),
+        meta = RecommendationMetaDto(
+            total = 0,
+            limit = request.limit,
+            storeId = request.storeId,
+            discover = request.discover,
+            latencyMs = 0,
+            cached = false,
+            scoreSources = ScoreSourcesDto()
+        )
+    )
 }

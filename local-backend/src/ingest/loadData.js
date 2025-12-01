@@ -23,6 +23,8 @@ function resolveDefaultMerchantsCsv() {
 const DEFAULT_MERCHANTS_CSV = resolveDefaultMerchantsCsv();
 const DEFAULT_MAPPING_PATH = path.join(__dirname, '..', '..', 'config', 'category-mapping.json');
 
+const TRUTHY_FLAGS = new Set(['true', '1', 'yes', 'y', 't']);
+
 function readJsonFile(mappingPath = DEFAULT_MAPPING_PATH) {
   const raw = fs.readFileSync(mappingPath, 'utf8');
   return JSON.parse(raw);
@@ -54,6 +56,26 @@ function issuerFromCardName(cardName) {
   if (!cardName) return '';
   const [issuer] = cardName.split(' ');
   return issuer || '';
+}
+
+function parseBooleanFlag(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    return TRUTHY_FLAGS.has(normalized);
+  }
+
+  return false;
 }
 
 function hashMapping(mapping) {
@@ -102,6 +124,7 @@ async function loadCardsData(cardsCsvPath, categoryMap) {
     const keyword = normalizeUnicode(readField(row, 'merchant_name'));
     const sourceCategory = normalizeUnicode(readField(row, 'category')) || '기타';
     const normalizedCategory = categoryMap[sourceCategory] || 'OTHER';
+    const isLocationBased = parseBooleanFlag(readField(row, 'is_location_based'));
 
     benefits.push({
       cardName,
@@ -109,6 +132,7 @@ async function loadCardsData(cardsCsvPath, categoryMap) {
       keyword,
       sourceCategory,
       normalizedCategory,
+      isLocationBased,
     });
   });
 
@@ -196,8 +220,8 @@ function upsertCardsAndBenefits(db, cards, benefits) {
     RETURNING id
   `);
   const insertBenefit = db.prepare(`
-    INSERT INTO card_benefits (card_id, description, keyword, source_category, normalized_category)
-    VALUES (@card_id, @description, @keyword, @source_category, @normalized_category)
+    INSERT INTO card_benefits (card_id, description, keyword, source_category, normalized_category, is_location_based)
+    VALUES (@card_id, @description, @keyword, @source_category, @normalized_category, @is_location_based)
   `);
 
   const cardIds = new Map();
@@ -221,6 +245,7 @@ function upsertCardsAndBenefits(db, cards, benefits) {
         keyword: benefit.keyword,
         source_category: benefit.sourceCategory,
         normalized_category: benefit.normalizedCategory,
+        is_location_based: benefit.isLocationBased ? 1 : 0,
       });
     }
   });
