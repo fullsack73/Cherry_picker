@@ -252,8 +252,9 @@ fun MainScreen(
         (recommendationUiState.isLoading || recommendationUiState.cards.isNotEmpty() || recommendationUiState.errorMessage != null)
     val effectivePeek = if (shouldShowSheet) 320.dp else 0.dp
 
-    LaunchedEffect(shouldShowSheet) {
+    LaunchedEffect(shouldShowSheet, selectedStore?.id) {
         if (shouldShowSheet) {
+            // Force re-expansion when a different store is selected after the sheet was manually hidden
             bottomSheetState.partialExpand()
         } else {
             bottomSheetState.hide()
