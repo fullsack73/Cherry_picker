@@ -274,6 +274,15 @@ fun MainScreen(
             }
     }
 
+    LaunchedEffect(bottomSheetState) {
+        snapshotFlow { bottomSheetState.currentValue }
+            .collect { value ->
+                if (value == SheetValue.Hidden && selectedStore != null) {
+                    selectedStore = null
+                }
+            }
+    }
+
     // Update showSearchHereButton when camera moves
     LaunchedEffect(currentCameraTarget) {
         lastSearchedLocation?.let { last ->
